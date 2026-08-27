@@ -44,8 +44,12 @@ jobs:
             Base the review on `gh pr diff`. Read other files only when the diff
             itself requires it to judge a change correctly - do not scan the repo.
 
-            Post findings with `gh pr comment`. For a finding tied to a specific
-            line, use `mcp__github_inline_comment__create_inline_comment`
-            (confirmed: true). Post comments only - do not edit any files.
+            Always post exactly one top-level summary with `gh pr comment`, even
+            if you find nothing worth flagging - say so explicitly rather than
+            staying silent, so a passing review is visible, not indistinguishable
+            from a run that failed to post anything. For a finding tied to a
+            specific line, additionally use
+            `mcp__github_inline_comment__create_inline_comment` (confirmed: true).
+            Post comments only - do not edit any files.
           claude_args: |
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
