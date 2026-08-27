@@ -1,0 +1,17 @@
+# Environment
+.env
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Pytest
+.pytest_cache/
+
+# Reports (generated, not committed)
+reports/
+
+# IDE
+.idea/
