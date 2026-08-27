@@ -1,0 +1,46 @@
+[project]
+name = "rivear-taf"
+version = "0.1.0"
+description = "Python test automation framework for the RiveAr e-commerce/SaaS application"
+authors = [
+    { name = "Krystian Rzeczkowski" }
+]
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    "pytest==8.3.4",
+    "requests==2.32.4",
+    "pydantic==2.12",
+    "python-dotenv==1.0.1",
+    "Faker==40.36.0",
+    "allure-pytest==2.13.5",
+    "pytest-xdist==3.6.1",
+    "pytest-html==4.1.1",
+]
+
+[tool.poetry]
+# Only the actual framework source packages are shipped as the distributable
+# package - everything test-run/output/data related is excluded on purpose.
+packages = [
+    { include = "core" },
+    { include = "models" },
+    { include = "utils" },
+]
+exclude = [
+    "tests",
+    "reports",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+skip_gitignore = true
+
+[build-system]
+requires = ["poetry-core>=2.4.0"]
+build-backend = "poetry.core.masonry.api"

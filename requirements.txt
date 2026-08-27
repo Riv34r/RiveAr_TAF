@@ -1,0 +1,9 @@
+# RiveAr Test Automation Framework - Dependencies
+pytest==8.3.4
+requests==2.32.4
+pydantic==2.12
+python-dotenv==1.0.1
+Faker==40.36.0
+allure-pytest==2.13.5
+pytest-xdist==3.6.1
+pytest-html==4.1.1
