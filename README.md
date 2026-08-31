@@ -54,7 +54,7 @@ Test cases carry stable IDs via `@allure.tag(...)` (`HLT-*`, `REG-*`, ...).
 Docstrings are reserved for genuinely important context, not the ID itself.
 
 - `tests/test_health.py` - HLT-01/02
-- `tests/test_registration.py` - REG-01..05
+- `tests/test_auth.py` - AUTH-001..030 (register, login, refresh, logout, profile, password)
 
 ## Defects found
 
