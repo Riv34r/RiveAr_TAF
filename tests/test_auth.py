@@ -144,11 +144,7 @@ def test_login_with_valid_credentials_returns_a_token_pair(
     assert_valid_token_pair(token_pair)
 
     current_user = auth_client.get_current_user(token_pair.access_token).json()
-    # Python < 3.11's fromisoformat can't parse a trailing "Z" - the SUT's
-    # own format, confirmed against a live response.
-    last_login_at = datetime.fromisoformat(
-        current_user["last_login_at"].replace("Z", "+00:00")
-    )
+    last_login_at = datetime.fromisoformat(current_user["last_login_at"])
     assert last_login_at >= before_login
 
 
