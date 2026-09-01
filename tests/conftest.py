@@ -58,8 +58,11 @@ def customer(seed_manifest) -> dict:
 @pytest.fixture(scope="session")
 def admin_client(api_url, auth_client, seed_manifest) -> ApiClient:
     admin = seeded_account(seed_manifest, "ADMIN")
-    tokens = auth_client.login(admin["email"], seed_manifest["password"]).json()
-    return ApiClient(api_url, tokens["access_token"])
+    response = auth_client.login(admin["email"], seed_manifest["password"])
+    assert (
+        response.status_code == 200
+    ), f"Could not authenticate as admin: {response.status_code} {response.text}"
+    return ApiClient(api_url, response.json()["access_token"])
 
 
 @pytest.fixture(scope="session")

@@ -12,7 +12,7 @@ Determine what should be tested before tests are implemented.
 
 # Workflow
 
-1. Retrieve the OpenAPI specification from `http://localhost:8000/openapi.json` using Bash and `curl`.
+1. Retrieve the OpenAPI specification from `$BASE_URL/openapi.json` (see `.env`) using Bash and `curl`.
 2. Use OpenAPI as the primary API contract and identify the relevant endpoints.
 3. Use targeted searches in the SUT to understand the actual endpoint behaviour and business rules.
 4. Inspect existing API tests and framework components to avoid duplicates.

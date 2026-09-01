@@ -32,10 +32,11 @@ def logged_in_customer(factory, auth_client):
 
 
 def disable(admin_client, new_customer):
-    admin_client.patch(
+    response = admin_client.patch(
         f"/admin/users/{new_customer['attributes']['user_id']}",
         json={"is_active": False},
     )
+    assert_status_code(response, 200)
 
 
 def disabled_customer(admin_client, factory):
@@ -227,7 +228,8 @@ def test_refresh_token_cannot_be_reused_after_rotation(
     auth_client, customer, seed_manifest
 ):
     token_pair = auth_client.login(customer["email"], seed_manifest["password"]).json()
-    auth_client.refresh(token_pair["refresh_token"])
+    first_refresh = auth_client.refresh(token_pair["refresh_token"])
+    assert_status_code(first_refresh, 200)
 
     reused = auth_client.refresh(token_pair["refresh_token"])
 
@@ -451,13 +453,17 @@ def test_change_password_with_correct_current_password_succeeds(factory, auth_cl
 @allure.tag("AUTH-028")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_change_password_with_wrong_current_password_returns_401(factory, auth_client):
-    _, token_pair = logged_in_customer(factory, auth_client)
+    new_customer, token_pair = logged_in_customer(factory, auth_client)
 
     response = auth_client.change_password(
         token_pair["access_token"], "WrongCurrent1", "NewStrongPass1"
     )
 
     assert_error(response, 401, "INVALID_CREDENTIALS")
+    old_login = auth_client.login(
+        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
+    )
+    assert_status_code(old_login, 200)
 
 
 @allure.title("A weak new password returns 422")
@@ -471,6 +477,10 @@ def test_weak_new_password_returns_422(factory, auth_client):
     )
 
     assert_error(response, 422, "VALIDATION_ERROR")
+    old_login = auth_client.login(
+        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
+    )
+    assert_status_code(old_login, 200)
 
 
 @allure.title("Changing the password without authentication returns 401")
