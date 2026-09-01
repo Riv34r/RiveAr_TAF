@@ -86,3 +86,5 @@ pre-commit install
 | 6 | UI layer | Playwright, page objects, critical journeys |
 | 7 | End-to-end | UI action -> API state -> DB truth |
 | 8 | CI | GitHub Actions: boot the SUT, run suites, publish reports |
+
+<!-- test claude review -->
