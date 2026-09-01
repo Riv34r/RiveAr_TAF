@@ -11,24 +11,16 @@ import pytest
 from faker import Faker
 
 from models.auth import TokenResponse
-from utils.helpers import assert_error, assert_status_code, assert_valid_token_pair
+from utils.helpers import (
+    assert_error,
+    assert_status_code,
+    assert_valid_token_pair,
+    logged_in_customer,
+)
 
 pytestmark = allure.feature("Auth")
 
 fake = Faker()
-
-
-def logged_in_customer(factory, auth_client):
-    """Create a throwaway customer and log in as them.
-
-    Returns (factory response, token pair). email/password/user_id are in
-    the factory response's `attributes`.
-    """
-    new_customer = factory("customer")
-    token_pair = auth_client.login(
-        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
-    ).json()
-    return new_customer, token_pair
 
 
 def disable(admin_client, new_customer):
