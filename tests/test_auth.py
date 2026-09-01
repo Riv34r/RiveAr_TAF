@@ -5,7 +5,6 @@ Implements AUTH-001 through AUTH-030 from tests/scenarios/api/auth.md.
 """
 
 import time
-from datetime import datetime, timezone
 
 import allure
 import pytest
@@ -134,9 +133,13 @@ def test_register_missing_required_field_returns_422(auth_client, missing_field)
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_login_with_valid_credentials_returns_a_token_pair(
-    auth_client, customer, seed_manifest
+    auth_client, admin_client, customer, seed_manifest
 ):
-    before_login = datetime.now(timezone.utc)
+    # last_login_at is a server timestamp - compare it against its own
+    # previous value rather than the test runner's clock.
+    before = admin_client.get(f"/admin/users/{customer['user_id']}").json()
+    last_login_before = before["last_login_at"]
+
     response = auth_client.login(customer["email"], seed_manifest["password"])
 
     assert_status_code(response, 200)
@@ -144,8 +147,7 @@ def test_login_with_valid_credentials_returns_a_token_pair(
     assert_valid_token_pair(token_pair)
 
     current_user = auth_client.get_current_user(token_pair.access_token).json()
-    last_login_at = datetime.fromisoformat(current_user["last_login_at"])
-    assert last_login_at >= before_login
+    assert current_user["last_login_at"] != last_login_before
 
 
 @allure.title("Logging in with a wrong password returns 401")
