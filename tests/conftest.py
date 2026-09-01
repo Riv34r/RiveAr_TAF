@@ -8,7 +8,7 @@ Shared pytest fixtures.
     customer        -> the seeded CUSTOMER account (email, role, ...)
     admin_client    -> ApiClient authenticated as the seeded ADMIN account
     factory         -> creates disposable test data via /test/factory/*,
-                       cleaned up automatically at the end of the session
+                       cleaned up automatically after each test
 """
 
 import os
@@ -65,12 +65,12 @@ def admin_client(api_url, auth_client, seed_manifest) -> ApiClient:
     return ApiClient(api_url, response.json()["access_token"])
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def run_id() -> str:
     return f"pytest-{uuid.uuid4().hex[:12]}"
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture
 def factory(api, run_id):
     def _create(entity_type: str, **overrides) -> dict:
         response = api.post(
