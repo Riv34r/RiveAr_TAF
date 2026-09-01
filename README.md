@@ -16,7 +16,7 @@ else is built incrementally on top of this - see [Roadmap](#roadmap).
 - `core/`  - `ApiClient` (the one place that knows how to reach the API) and
   domain clients built on top of it (`AuthClient`, ...)
 - `models/` - Pydantic models for API objects (empty until a test needs one)
-- `utils/` - shared assertion helpers (empty until one is shared)
+- `utils/` - shared assertion helpers (`assert_status_code`, `assert_error`, ...)
 - `tests/` - test suites and `conftest.py`
 
 ## Setup
@@ -42,19 +42,24 @@ allure serve reports/allure_results
 
 ## Fixtures
 
-| Fixture       | Scope   | Purpose                                    |
-|---------------|---------|---------------------------------------------|
-| `api_url`     | session | Base URL + version prefix, from `.env`     |
-| `api`         | session | Unauthenticated `ApiClient`                |
-| `auth_client` | session | `AuthClient` wrapping `api`, for `/auth/*` |
+| Fixture         | Scope    | Purpose                                          |
+|-----------------|----------|---------------------------------------------------|
+| `api_url`       | session  | Base URL + version prefix, from `.env`           |
+| `api`           | session  | Unauthenticated `ApiClient`                      |
+| `auth_client`   | session  | `AuthClient` wrapping `api`, for `/auth/*`       |
+| `seed_manifest` | session  | Seeded accounts and their shared password        |
+| `customer`      | session  | The seeded CUSTOMER account                      |
+| `admin_client`  | session  | `ApiClient` authenticated as the seeded ADMIN    |
+| `run_id`        | function | Unique tag for one test's disposable entities    |
+| `factory`       | function | Creates disposable entities, cleaned up after    |
 
 ## Test coverage
 
-Test cases carry stable IDs via `@allure.tag(...)` (`HLT-*`, `REG-*`, ...).
+Test cases carry stable IDs via `@allure.tag(...)` (`HLT-*`, `AUTH-*`, ...).
 Docstrings are reserved for genuinely important context, not the ID itself.
 
 - `tests/test_health.py` - HLT-01/02
-- `tests/test_registration.py` - REG-01..05
+- `tests/test_auth.py` - AUTH-001..030 (register, login, refresh, logout, profile, password)
 
 ## Defects found
 
