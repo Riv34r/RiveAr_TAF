@@ -5,6 +5,7 @@ Implements AUTH-001 through AUTH-030 from tests/scenarios/api/auth.md.
 """
 
 import time
+from datetime import datetime, timezone
 
 import allure
 import pytest
@@ -135,11 +136,20 @@ def test_register_missing_required_field_returns_422(auth_client, missing_field)
 def test_login_with_valid_credentials_returns_a_token_pair(
     auth_client, customer, seed_manifest
 ):
+    before_login = datetime.now(timezone.utc)
     response = auth_client.login(customer["email"], seed_manifest["password"])
 
     assert_status_code(response, 200)
     token_pair = TokenResponse.model_validate(response.json())
     assert_valid_token_pair(token_pair)
+
+    current_user = auth_client.get_current_user(token_pair.access_token).json()
+    # Python < 3.11's fromisoformat can't parse a trailing "Z" - the SUT's
+    # own format, confirmed against a live response.
+    last_login_at = datetime.fromisoformat(
+        current_user["last_login_at"].replace("Z", "+00:00")
+    )
+    assert last_login_at >= before_login
 
 
 @allure.title("Logging in with a wrong password returns 401")
