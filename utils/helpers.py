@@ -8,19 +8,6 @@ def seeded_account(manifest: dict, role: str) -> dict:
     return next(a for a in manifest["accounts"] if a["role"] == role)
 
 
-def logged_in_customer(factory, auth_client):
-    """Create a throwaway customer and log in as them.
-
-    Returns (factory response, token pair). email/password/user_id are in
-    the factory response's `attributes`.
-    """
-    new_customer = factory("customer")
-    token_pair = auth_client.login(
-        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
-    ).json()
-    return new_customer, token_pair
-
-
 def assert_status_code(response, expected: int) -> None:
     assert response.status_code == expected, (
         f"Expected status {expected}, got {response.status_code}. "
