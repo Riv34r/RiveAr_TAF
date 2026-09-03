@@ -175,3 +175,46 @@ a *different* role).
 **Expected Result:**
 - Response status is 404.
 - `error.code` is `ROLE_NOT_FOUND`.
+
+### ROLE-013 — A malformed role_id (not a UUID) returns 422, not 404
+
+**Endpoint:** POST /api/v1/admin/roles/{role_id}/permissions,
+DELETE /api/v1/admin/roles/{role_id}/permissions/{permission_id}
+**Type:** Validation
+**Priority:** Low
+
+**Objective:** Distinct from ROLE-008/012 - a syntactically invalid ID fails
+at request validation before the role lookup ever runs, so it never reaches
+`ROLE_NOT_FOUND`.
+
+**Expected Result:**
+- Response status is 422.
+- `error.code` is `VALIDATION_ERROR`.
+
+### ROLE-014 — A malformed permission_id (not a UUID) returns 422, not 404
+
+**Endpoint:** DELETE /api/v1/admin/roles/{role_id}/permissions/{permission_id}
+**Type:** Validation
+**Priority:** Low
+
+**Objective:** Distinct from ROLE-011 - same reasoning as ROLE-013, applied
+to `permission_id` instead.
+
+**Expected Result:**
+- Response status is 422.
+- `error.code` is `VALIDATION_ERROR`.
+
+### ROLE-015 — An empty permission name is rejected at the schema level
+
+**Endpoint:** POST /api/v1/admin/roles/{role_id}/permissions
+**Type:** Validation
+**Priority:** Low
+
+**Objective:** Distinct from ROLE-007 - `""` fails `GrantPermissionRequest`'s
+`min_length=1` before the catalogue is even consulted, so it is
+`VALIDATION_ERROR`, not `UNKNOWN_PERMISSION`, and carries no
+`details.allowed`.
+
+**Expected Result:**
+- Response status is 422.
+- `error.code` is `VALIDATION_ERROR`.
