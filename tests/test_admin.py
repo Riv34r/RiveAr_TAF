@@ -222,15 +222,22 @@ def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
     roles = admin_client.list_roles().json()
     support = next(r for r in roles if r["name"] == "SUPPORT")
 
-    grant_response = admin_client.grant_permission(support["id"], "customers:manage")
-    assert_status_code(grant_response, 201)
-    permission = next(
-        p
-        for p in grant_response.json()["permissions"]
-        if p["name"] == "customers:manage"
-    )
-
+    permission = None
     try:
+        grant_response = admin_client.grant_permission(
+            support["id"], "customers:manage"
+        )
+        assert_status_code(grant_response, 201)
+        permission = next(
+            (
+                p
+                for p in grant_response.json()["permissions"]
+                if p["name"] == "customers:manage"
+            ),
+            None,
+        )
+        assert permission is not None, "Granted permission missing from the response"
+
         response = admin_client.list_audit_logs(action="PERMISSION_GRANTED")
         assert_status_code(response, 200)
         assert any(
@@ -239,7 +246,8 @@ def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
             for item in response.json()["items"]
         )
     finally:
-        admin_client.revoke_permission(support["id"], permission["id"])
+        if permission is not None:
+            admin_client.revoke_permission(support["id"], permission["id"])
 
 
 @allure.title("Combining audit log filters narrows the result, not widens it")
