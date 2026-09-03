@@ -6,9 +6,14 @@ Shared pytest fixtures.
     auth_client     -> AuthClient wrapping api, for /auth/* operations
     seed_manifest   -> seeded accounts and their real password, from the SUT
     customer        -> the seeded CUSTOMER account (email, role, ...)
-    admin_client    -> ApiClient authenticated as the seeded ADMIN account
+    admin_client    -> AdminClient authenticated as the seeded ADMIN account
     factory         -> creates disposable test data via /test/factory/*,
                        cleaned up automatically after each test
+    new_customer    -> a fresh throwaway customer via factory("customer")
+    logged_in_customer -> (new_customer, token pair) for a fresh,
+                       already-logged-in throwaway customer
+    customer_client -> AdminClient authenticated as a throwaway customer,
+                       for permission-boundary negative tests
 """
 
 import os
@@ -17,6 +22,7 @@ import uuid
 import pytest
 from dotenv import load_dotenv
 
+from core.admin_client import AdminClient
 from core.api_client import ApiClient
 from core.auth_client import AuthClient
 from utils.helpers import seeded_account
@@ -56,13 +62,13 @@ def customer(seed_manifest) -> dict:
 
 
 @pytest.fixture(scope="session")
-def admin_client(api_url, auth_client, seed_manifest) -> ApiClient:
+def admin_client(api_url, auth_client, seed_manifest) -> AdminClient:
     admin = seeded_account(seed_manifest, "ADMIN")
     response = auth_client.login(admin["email"], seed_manifest["password"])
     assert (
         response.status_code == 200
     ), f"Could not authenticate as admin: {response.status_code} {response.text}"
-    return ApiClient(api_url, response.json()["access_token"])
+    return AdminClient(ApiClient(api_url, response.json()["access_token"]))
 
 
 @pytest.fixture
@@ -85,3 +91,22 @@ def factory(api, run_id):
     yield _create
 
     api.delete("/test/cleanup", params={"run_id": run_id})
+
+
+@pytest.fixture
+def new_customer(factory):
+    return factory("customer")
+
+
+@pytest.fixture
+def logged_in_customer(new_customer, auth_client):
+    token_pair = auth_client.login(
+        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
+    ).json()
+    return new_customer, token_pair
+
+
+@pytest.fixture
+def customer_client(api_url, logged_in_customer) -> AdminClient:
+    _, token_pair = logged_in_customer
+    return AdminClient(ApiClient(api_url, token_pair["access_token"]))
