@@ -18,23 +18,9 @@ pytestmark = allure.feature("Auth")
 fake = Faker()
 
 
-def logged_in_customer(factory, auth_client):
-    """Create a throwaway customer and log in as them.
-
-    Returns (factory response, token pair). email/password/user_id are in
-    the factory response's `attributes`.
-    """
-    new_customer = factory("customer")
-    token_pair = auth_client.login(
-        new_customer["attributes"]["email"], new_customer["attributes"]["password"]
-    ).json()
-    return new_customer, token_pair
-
-
 def disable(admin_client, new_customer):
-    response = admin_client.patch(
-        f"/admin/users/{new_customer['attributes']['user_id']}",
-        json={"is_active": False},
+    response = admin_client.update_user(
+        new_customer["attributes"]["user_id"], is_active=False
     )
     assert_status_code(response, 200)
 
@@ -138,7 +124,7 @@ def test_login_with_valid_credentials_returns_a_token_pair(
 ):
     # last_login_at is a server timestamp - compare it against its own
     # previous value rather than the test runner's clock.
-    before = admin_client.get(f"/admin/users/{customer['user_id']}").json()
+    before = admin_client.get_user(customer["user_id"]).json()
     last_login_before = before["last_login_at"]
 
     response = auth_client.login(customer["email"], seed_manifest["password"])
@@ -260,9 +246,9 @@ def test_malformed_refresh_token_returns_401(auth_client):
 @allure.tag("AUTH-015")
 @allure.severity(allure.severity_level.MINOR)
 def test_refresh_as_a_since_disabled_user_returns_401(
-    admin_client, factory, auth_client
+    admin_client, auth_client, logged_in_customer
 ):
-    new_customer, token_pair = logged_in_customer(factory, auth_client)
+    new_customer, token_pair = logged_in_customer
     disable(admin_client, new_customer)
 
     response = auth_client.refresh(token_pair["refresh_token"])
@@ -377,9 +363,9 @@ def test_expired_access_token_returns_401(api, auth_client, customer):
 @allure.tag("AUTH-023")
 @allure.severity(allure.severity_level.MINOR)
 def test_token_for_a_since_disabled_user_returns_401(
-    admin_client, factory, auth_client
+    admin_client, auth_client, logged_in_customer
 ):
-    new_customer, token_pair = logged_in_customer(factory, auth_client)
+    new_customer, token_pair = logged_in_customer
     disable(admin_client, new_customer)
 
     response = auth_client.get_current_user(token_pair["access_token"])
@@ -395,8 +381,8 @@ def test_token_for_a_since_disabled_user_returns_401(
 @allure.title("A valid full_name update succeeds")
 @allure.tag("AUTH-024")
 @allure.severity(allure.severity_level.NORMAL)
-def test_valid_full_name_update_succeeds(factory, auth_client):
-    _, token_pair = logged_in_customer(factory, auth_client)
+def test_valid_full_name_update_succeeds(auth_client, logged_in_customer):
+    _, token_pair = logged_in_customer
 
     new_name = fake.name()
     response = auth_client.update_profile(token_pair["access_token"], new_name)
@@ -418,8 +404,8 @@ def test_update_profile_without_authentication_returns_401(api):
 @allure.tag("AUTH-026")
 @allure.severity(allure.severity_level.MINOR)
 @pytest.mark.parametrize("full_name", ["", "x" * 256], ids=["empty", "over-max-length"])
-def test_invalid_full_name_returns_422(factory, auth_client, full_name):
-    _, token_pair = logged_in_customer(factory, auth_client)
+def test_invalid_full_name_returns_422(auth_client, logged_in_customer, full_name):
+    _, token_pair = logged_in_customer
 
     response = auth_client.update_profile(token_pair["access_token"], full_name)
 
@@ -434,8 +420,10 @@ def test_invalid_full_name_returns_422(factory, auth_client, full_name):
 @allure.title("Changing the password with the correct current password succeeds")
 @allure.tag("AUTH-027")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_change_password_with_correct_current_password_succeeds(factory, auth_client):
-    new_customer, token_pair = logged_in_customer(factory, auth_client)
+def test_change_password_with_correct_current_password_succeeds(
+    auth_client, logged_in_customer
+):
+    new_customer, token_pair = logged_in_customer
     current_password = new_customer["attributes"]["password"]
 
     response = auth_client.change_password(
@@ -452,8 +440,10 @@ def test_change_password_with_correct_current_password_succeeds(factory, auth_cl
 @allure.title("Changing the password with the wrong current password returns 401")
 @allure.tag("AUTH-028")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_change_password_with_wrong_current_password_returns_401(factory, auth_client):
-    new_customer, token_pair = logged_in_customer(factory, auth_client)
+def test_change_password_with_wrong_current_password_returns_401(
+    auth_client, logged_in_customer
+):
+    new_customer, token_pair = logged_in_customer
 
     response = auth_client.change_password(
         token_pair["access_token"], "WrongCurrent1", "NewStrongPass1"
@@ -469,8 +459,8 @@ def test_change_password_with_wrong_current_password_returns_401(factory, auth_c
 @allure.title("A weak new password returns 422")
 @allure.tag("AUTH-029")
 @allure.severity(allure.severity_level.NORMAL)
-def test_weak_new_password_returns_422(factory, auth_client):
-    new_customer, token_pair = logged_in_customer(factory, auth_client)
+def test_weak_new_password_returns_422(auth_client, logged_in_customer):
+    new_customer, token_pair = logged_in_customer
 
     response = auth_client.change_password(
         token_pair["access_token"], new_customer["attributes"]["password"], "weak"
