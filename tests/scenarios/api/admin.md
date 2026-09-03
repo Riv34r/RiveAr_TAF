@@ -159,6 +159,34 @@ this suite's to make).
   its roles no longer include ADMIN, depending on which field is exercised).
 - No special error or confirmation step is required by the API.
 
+### ADMIN-015 — A malformed user_id (not a UUID) returns 422, not 404
+
+**Endpoint:** GET /api/v1/admin/users/{user_id}
+**Type:** Validation
+**Priority:** Low
+
+**Objective:** Distinct from ADMIN-005 - a syntactically invalid ID fails at
+request validation before the lookup ever runs, so it never reaches
+`USER_NOT_FOUND`.
+
+**Expected Result:**
+- Response status is 422.
+- `error.code` is `VALIDATION_ERROR`.
+
+### ADMIN-016 — Setting an unrecognised role name is rejected
+
+**Endpoint:** PATCH /api/v1/admin/users/{user_id}
+**Type:** Validation
+**Priority:** Low
+
+**Objective:** Distinct from ADMIN-008 - a role name outside
+`{ADMIN, MANAGER, SUPPORT, CUSTOMER}` fails Pydantic enum validation, not the
+`min_length=1` check.
+
+**Expected Result:**
+- Response status is 422.
+- `error.code` is `VALIDATION_ERROR`.
+
 ---
 
 ## Audit logs
@@ -215,3 +243,23 @@ user-facing ones.
 - `GET /admin/audit-logs?action=PERMISSION_GRANTED` includes an entry whose
   `entity_type` is `"role"` and whose `new_value` names the granted
   permission.
+
+### ADMIN-017 — Combining audit log filters narrows the result, not widens it
+
+**Endpoint:** GET /api/v1/admin/audit-logs
+**Type:** Positive / Filtering
+**Priority:** Medium
+
+**Objective:** Filters are ANDed, not ORed. `action` alone and `action` +
+`entity_id` together must not return the same count when more than one
+entity has that action logged against it.
+
+**Preconditions:**
+- Two throwaway customers, both disabled by the same admin (two
+  `USER_STATUS_CHANGED` entries, different `entity_id`).
+
+**Expected Result:**
+- Response status is 200.
+- `?action=USER_STATUS_CHANGED` alone returns entries for both customers.
+- `?action=USER_STATUS_CHANGED&entity_id=<first customer's id>` returns only
+  the one entry matching both filters.
