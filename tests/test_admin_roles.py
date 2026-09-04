@@ -14,15 +14,20 @@ pytestmark = allure.feature("Admin roles")
 
 def role_named(admin_client, name):
     roles = admin_client.list_roles().json()
-    return next(r for r in roles if r["name"] == name)
+    role = next((r for r in roles if r["name"] == name), None)
+    assert role is not None, f"No role named {name!r} - check seed data"
+    return role
 
 
 def grant(admin_client, role_id, permission_name):
     response = admin_client.grant_permission(role_id, permission_name)
     assert_status_code(response, 201)
-    return next(
-        p for p in response.json()["permissions"] if p["name"] == permission_name
+    permission = next(
+        (p for p in response.json()["permissions"] if p["name"] == permission_name),
+        None,
     )
+    assert permission is not None, f"{permission_name!r} missing from grant response"
+    return permission
 
 
 @allure.title("Listing roles returns each with its permissions")
@@ -75,9 +80,12 @@ def test_permission_catalogue_requires_permission(customer_client):
 def test_granting_a_permission_the_role_lacks_succeeds(admin_client):
     role = role_named(admin_client, "SUPPORT")
 
-    granted = grant(admin_client, role["id"], "settings:manage")
-
-    admin_client.revoke_permission(role["id"], granted["id"])
+    granted = None
+    try:
+        granted = grant(admin_client, role["id"], "settings:manage")
+    finally:
+        if granted is not None:
+            admin_client.revoke_permission(role["id"], granted["id"])
 
 
 @allure.title("Granting a permission the role already has returns 409")
@@ -117,13 +125,19 @@ def test_granting_a_permission_to_an_unknown_role_returns_404(admin_client):
 @allure.severity(allure.severity_level.CRITICAL)
 def test_revoking_a_permission_the_role_holds_succeeds(admin_client):
     role = role_named(admin_client, "SUPPORT")
-    granted = grant(admin_client, role["id"], "analytics:view")
 
-    response = admin_client.revoke_permission(role["id"], granted["id"])
+    granted = None
+    try:
+        granted = grant(admin_client, role["id"], "analytics:view")
 
-    assert_status_code(response, 200)
-    names = [p["name"] for p in response.json()["permissions"]]
-    assert "analytics:view" not in names
+        response = admin_client.revoke_permission(role["id"], granted["id"])
+
+        assert_status_code(response, 200)
+        names = [p["name"] for p in response.json()["permissions"]]
+        assert "analytics:view" not in names
+    finally:
+        if granted is not None:
+            admin_client.revoke_permission(role["id"], granted["id"])
 
 
 @allure.title("roles:manage cannot be revoked from ADMIN")
@@ -131,7 +145,10 @@ def test_revoking_a_permission_the_role_holds_succeeds(admin_client):
 @allure.severity(allure.severity_level.CRITICAL)
 def test_roles_manage_cannot_be_revoked_from_admin(admin_client):
     role = role_named(admin_client, "ADMIN")
-    permission = next(p for p in role["permissions"] if p["name"] == "roles:manage")
+    permission = next(
+        (p for p in role["permissions"] if p["name"] == "roles:manage"), None
+    )
+    assert permission is not None, "ADMIN is missing roles:manage - check seed data"
 
     response = admin_client.revoke_permission(role["id"], permission["id"])
 
@@ -145,8 +162,9 @@ def test_revoking_a_permission_the_role_does_not_hold_returns_404(admin_client):
     support = role_named(admin_client, "SUPPORT")
     admin_role = role_named(admin_client, "ADMIN")
     permission = next(
-        p for p in admin_role["permissions"] if p["name"] == "audit_logs:view"
+        (p for p in admin_role["permissions"] if p["name"] == "audit_logs:view"), None
     )
+    assert permission is not None, "ADMIN is missing audit_logs:view - check seed data"
 
     response = admin_client.revoke_permission(support["id"], permission["id"])
 
@@ -158,7 +176,10 @@ def test_revoking_a_permission_the_role_does_not_hold_returns_404(admin_client):
 @allure.severity(allure.severity_level.MINOR)
 def test_revoking_a_permission_from_an_unknown_role_returns_404(admin_client):
     role = role_named(admin_client, "ADMIN")
-    permission = next(p for p in role["permissions"] if p["name"] == "roles:manage")
+    permission = next(
+        (p for p in role["permissions"] if p["name"] == "roles:manage"), None
+    )
+    assert permission is not None, "ADMIN is missing roles:manage - check seed data"
 
     response = admin_client.revoke_permission(uuid.uuid4(), permission["id"])
 
