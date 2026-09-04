@@ -23,9 +23,9 @@ supports it, and which automated test now guards each fix.
 |---|---|---|---|---|---|
 | [BUG-001](#bug-001) | High | Fixed | API | Product page served stale stock after an order, via a 304 | PROD-15 |
 | [BUG-002](#bug-002) | Medium | Open | UI | Staff have no navigation to the admin dashboard | — |
-| [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-11 |
+| [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-002 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
-| [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-04 |
+| [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-004 |
 | [OBS-004](#obs-004) | Low | Open | API | `/test/cleanup` on a "customer" leaves the User account behind | — |
 
 ---
@@ -209,7 +209,7 @@ Not applied — outside the scope of the change that was authorised.
 | Severity | Low |
 | Status | Open — decision needed |
 | Area | Backend `GET /api/v1/products` + storefront |
-| Covered by | `PROD-11` (documents current behaviour) |
+| Covered by | `PROD-002` (documents current behaviour) |
 
 `GET /products` applies no availability filter unless the caller passes
 `?status=active`. The storefront sends that parameter only when the shopper
@@ -263,7 +263,7 @@ value rather than matching its text.
 | Severity | Low |
 | Status | Open |
 | Area | Backend — validation errors |
-| Covered by | `PROD-04` (asserts the status and code only) |
+| Covered by | `PROD-004` (asserts the status and code only) |
 
 An invalid `sort_by` returns the permitted values as prose, with `details`
 empty:
