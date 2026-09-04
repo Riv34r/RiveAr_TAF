@@ -135,6 +135,7 @@ def test_revoking_a_permission_the_role_holds_succeeds(admin_client):
         assert_status_code(response, 200)
         names = [p["name"] for p in response.json()["permissions"]]
         assert "analytics:view" not in names
+        granted = None  # already revoked above - nothing left for finally to do
     finally:
         if granted is not None:
             admin_client.revoke_permission(role["id"], granted["id"])
