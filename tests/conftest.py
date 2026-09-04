@@ -6,6 +6,9 @@ Shared pytest fixtures.
     auth_client     -> AuthClient wrapping api, for /auth/* operations
     seed_manifest   -> seeded accounts and their real password, from the SUT
     customer        -> the seeded CUSTOMER account (email, role, ...)
+    admin_session   -> an authenticated ApiClient for the seeded ADMIN
+                       account, shared by every domain client that needs
+                       a privileged identity
     admin_client    -> AdminClient authenticated as the seeded ADMIN account
     factory         -> creates disposable test data via /test/factory/*,
                        cleaned up automatically after each test
@@ -14,6 +17,11 @@ Shared pytest fixtures.
                        already-logged-in throwaway customer
     customer_client -> AdminClient authenticated as a throwaway customer,
                        for permission-boundary negative tests
+    product_client  -> ProductClient authenticated as the seeded ADMIN
+                       account (holds products:manage)
+    public_products -> ProductClient with no authentication, for the
+                       public/permission-boundary side of a check
+    new_product     -> a fresh throwaway product via factory("product")
 """
 
 import os
@@ -25,6 +33,7 @@ from dotenv import load_dotenv
 from core.admin_client import AdminClient
 from core.api_client import ApiClient
 from core.auth_client import AuthClient
+from core.product_client import ProductClient
 from utils.helpers import seeded_account
 
 load_dotenv(override=False)
@@ -62,13 +71,18 @@ def customer(seed_manifest) -> dict:
 
 
 @pytest.fixture(scope="session")
-def admin_client(api_url, auth_client, seed_manifest) -> AdminClient:
+def admin_session(api_url, auth_client, seed_manifest) -> ApiClient:
     admin = seeded_account(seed_manifest, "ADMIN")
     response = auth_client.login(admin["email"], seed_manifest["password"])
     assert (
         response.status_code == 200
     ), f"Could not authenticate as admin: {response.status_code} {response.text}"
-    return AdminClient(ApiClient(api_url, response.json()["access_token"]))
+    return ApiClient(api_url, response.json()["access_token"])
+
+
+@pytest.fixture(scope="session")
+def admin_client(admin_session) -> AdminClient:
+    return AdminClient(admin_session)
 
 
 @pytest.fixture
@@ -110,3 +124,18 @@ def logged_in_customer(new_customer, auth_client):
 def customer_client(api_url, logged_in_customer) -> AdminClient:
     _, token_pair = logged_in_customer
     return AdminClient(ApiClient(api_url, token_pair["access_token"]))
+
+
+@pytest.fixture(scope="session")
+def product_client(admin_session) -> ProductClient:
+    return ProductClient(admin_session)
+
+
+@pytest.fixture(scope="session")
+def public_products(api) -> ProductClient:
+    return ProductClient(api)
+
+
+@pytest.fixture
+def new_product(factory):
+    return factory("product")
