@@ -180,7 +180,10 @@ def test_listing_audit_logs_returns_recent_entries_paginated(
     user_id = new_customer["attributes"]["user_id"]
     admin_client.update_user(user_id, is_active=False)
 
-    response = admin_client.list_audit_logs()
+    # Filtered by entity_id rather than reading an unfiltered position 0 -
+    # audit-logs is a list shared across the whole run, and another worker's
+    # entry can land newer than this one under -n 4 (confirmed: it did).
+    response = admin_client.list_audit_logs(entity_id=user_id)
 
     assert_status_code(response, 200)
     body = response.json()
