@@ -279,7 +279,10 @@ def test_replacing_category_ids_replaces_the_previous_set(
     product_id = new_product["entity_id"]
     first_category = factory("category")["entity_id"]
     second_category = factory("category")["entity_id"]
-    product_client.update_product(product_id, category_ids=[first_category])
+    first_update = product_client.update_product(
+        product_id, category_ids=[first_category]
+    )
+    assert_status_code(first_update, 200)
 
     response = product_client.update_product(product_id, category_ids=[second_category])
 
