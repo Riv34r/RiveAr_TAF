@@ -526,13 +526,16 @@ def test_updating_with_a_stale_if_match_returns_412(product_client, new_product)
     product_id = new_product["entity_id"]
     original_version = product_client.get_product(product_id).json()["version"]
     product_client.update_product(product_id, name=fake.unique.company())
+    before = product_client.get_product(product_id).json()
 
     response = product_client.update_product(
         product_id, if_match=f'"{original_version}"', name=fake.unique.company()
     )
 
     error = assert_error(response, 412, "PRECONDITION_FAILED")
+    assert error["details"]["current_etag"] == f'"{before["version"]}"'
     assert error["details"]["provided"] == [str(original_version)]
+    assert product_client.get_product(product_id).json() == before
 
 
 @allure.title("Deleting with a stale If-Match returns 412")
