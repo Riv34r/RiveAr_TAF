@@ -492,9 +492,11 @@ the same code.
 - A throwaway product, soft-deleted.
 
 **Expected Result:**
-- Response status is 207 (if sent alongside a valid id) or 200 with
-  `summary.failed: 1` if sent alone with best_effort - either way the
-  item's result has `success: false`, `code` `PRODUCT_DELETED`.
+- Response status is 207 - `finalize()` in `bulk_service.py` returns 200
+  only when `outcome.all_succeeded` (`failed == 0`); batch size never
+  enters into it, so a single failing id sent alone is still 207, not 200.
+- `summary.failed` is 1.
+- The item's result has `success: false`, `code` `PRODUCT_DELETED`.
 
 ### PROD-031 — Bulk requires no If-Match precondition
 

@@ -461,7 +461,9 @@ def test_activating_a_soft_deleted_product_fails_per_item(product_client, new_pr
     response = product_client.bulk_products([product_id], action="activate")
 
     assert_status_code(response, 207)
-    result = response.json()["results"][0]
+    body = response.json()
+    assert body["summary"]["failed"] == 1
+    result = body["results"][0]
     assert result["success"] is False
     assert result["code"] == "PRODUCT_DELETED"
 
