@@ -17,6 +17,8 @@ Shared pytest fixtures.
                        already-logged-in throwaway customer
     customer_client -> AdminClient authenticated as a throwaway customer,
                        for permission-boundary negative tests
+    customer_products -> ProductClient authenticated as a throwaway
+                       customer, for permission-boundary negative tests
     product_client  -> ProductClient authenticated as the seeded ADMIN
                        account (holds products:manage)
     public_products -> ProductClient with no authentication, for the
@@ -124,6 +126,12 @@ def logged_in_customer(new_customer, auth_client):
 def customer_client(api_url, logged_in_customer) -> AdminClient:
     _, token_pair = logged_in_customer
     return AdminClient(ApiClient(api_url, token_pair["access_token"]))
+
+
+@pytest.fixture
+def customer_products(api_url, logged_in_customer) -> ProductClient:
+    _, token_pair = logged_in_customer
+    return ProductClient(ApiClient(api_url, token_pair["access_token"]))
 
 
 @pytest.fixture(scope="session")
