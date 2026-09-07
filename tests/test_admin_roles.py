@@ -141,7 +141,7 @@ def test_revoking_a_permission_the_role_holds_succeeds(admin_client):
             admin_client.revoke_permission(role["id"], granted["id"])
 
 
-@allure.title("roles:manage cannot be revoked from ADMIN")
+@allure.title("Roles:manage cannot be revoked from ADMIN")
 @allure.tag("ROLE-010")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_roles_manage_cannot_be_revoked_from_admin(admin_client):
