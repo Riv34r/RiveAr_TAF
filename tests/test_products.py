@@ -1,6 +1,6 @@
 """Test cases for /products/*.
 
-Implements PROD-001 through PROD-021 from tests/scenarios/api/products.md.
+Implements PROD-001 through PROD-037 from tests/scenarios/api/products.md.
 """
 
 import uuid
@@ -8,8 +8,6 @@ import uuid
 import allure
 from faker import Faker
 
-from core.api_client import ApiClient
-from core.product_client import ProductClient
 from utils.helpers import assert_error, assert_status_code
 
 pytestmark = allure.feature("Products")
@@ -97,7 +95,7 @@ def test_combining_price_filters_narrows_the_result(product_client):
     assert all(20.00 <= float(item["price"]) <= 50.00 for item in items)
 
 
-@allure.title("include_deleted is ignored for non-manager callers")
+@allure.title("Include_deleted is ignored for non-manager callers")
 @allure.tag("PROD-007")
 @allure.severity(allure.severity_level.NORMAL)
 def test_include_deleted_is_ignored_for_non_manager(
@@ -184,10 +182,7 @@ def test_creating_a_product_succeeds(product_client):
 @allure.title("Creating a product without products:manage returns 403")
 @allure.tag("PROD-012")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_creating_a_product_without_permission_returns_403(api_url, logged_in_customer):
-    _, token_pair = logged_in_customer
-    customer_products = ProductClient(ApiClient(api_url, token_pair["access_token"]))
-
+def test_creating_a_product_without_permission_returns_403(customer_products):
     response = customer_products.create_product(
         sku=f"TAF-{uuid.uuid4().hex[:12]}", name=fake.unique.company(), price="19.99"
     )
@@ -334,3 +329,230 @@ def test_restoring_a_non_deleted_product_returns_404(product_client, new_product
     response = product_client.restore_product(new_product["entity_id"])
 
     assert_error(response, 404, "PRODUCT_NOT_FOUND")
+
+
+# ---------------------------------------------------------------------------
+# Bulk operations
+# ---------------------------------------------------------------------------
+
+
+@allure.title("Best_effort with every id valid succeeds")
+@allure.tag("PROD-022")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_best_effort_with_every_id_valid_succeeds(product_client, factory):
+    first = factory("product")["entity_id"]
+    second = factory("product")["entity_id"]
+
+    response = product_client.bulk_products([first, second], action="deactivate")
+
+    assert_status_code(response, 200)
+    body = response.json()
+    assert body["applied"] is True
+    assert body["summary"] == {"total": 2, "succeeded": 2, "failed": 0}
+    assert product_client.get_product(first).json()["is_active"] is False
+    assert product_client.get_product(second).json()["is_active"] is False
+
+
+@allure.title("Best_effort with a mix of valid and invalid ids partially succeeds")
+@allure.tag("PROD-023")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_best_effort_with_mixed_ids_partially_succeeds(product_client, new_product):
+    real_id = new_product["entity_id"]
+    unknown_id = str(uuid.uuid4())
+
+    response = product_client.bulk_products([real_id, unknown_id], action="deactivate")
+
+    assert_status_code(response, 207)
+    body = response.json()
+    assert body["applied"] is True
+    results = {r["id"]: r for r in body["results"]}
+    assert results[real_id]["success"] is True
+    assert results[unknown_id]["success"] is False
+    assert results[unknown_id]["code"] == "PRODUCT_NOT_FOUND"
+    assert product_client.get_product(real_id).json()["is_active"] is False
+
+
+@allure.title("Atomic with every id valid succeeds")
+@allure.tag("PROD-024")
+@allure.severity(allure.severity_level.NORMAL)
+def test_atomic_with_every_id_valid_succeeds(product_client, factory):
+    first = factory("product")["entity_id"]
+    second = factory("product")["entity_id"]
+
+    response = product_client.bulk_products(
+        [first, second], action="deactivate", mode="atomic"
+    )
+
+    assert_status_code(response, 200)
+    assert response.json()["applied"] is True
+
+
+@allure.title("Atomic with any invalid id rolls back everything")
+@allure.tag("PROD-025")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_atomic_with_any_invalid_id_rolls_back_everything(product_client, new_product):
+    real_id = new_product["entity_id"]
+    unknown_id = str(uuid.uuid4())
+
+    response = product_client.bulk_products(
+        [real_id, unknown_id], action="deactivate", mode="atomic"
+    )
+
+    error = assert_error(response, 409, "BULK_ROLLED_BACK")
+    assert error["details"]["applied"] is False
+    assert product_client.get_product(real_id).json()["is_active"] is True
+
+
+@allure.title("An empty ids list is rejected")
+@allure.tag("PROD-026")
+@allure.severity(allure.severity_level.NORMAL)
+def test_empty_ids_list_is_rejected(product_client):
+    response = product_client.bulk_products([], action="deactivate")
+
+    assert_error(response, 422, "VALIDATION_ERROR")
+
+
+@allure.title("More than the maximum ids is rejected")
+@allure.tag("PROD-027")
+@allure.severity(allure.severity_level.MINOR)
+def test_more_than_the_maximum_ids_is_rejected(product_client):
+    ids = [str(uuid.uuid4()) for _ in range(101)]
+
+    response = product_client.bulk_products(ids, action="deactivate")
+
+    error = assert_error(response, 422, "VALIDATION_ERROR")
+    ctx = error["details"]["errors"][0]["ctx"]
+    assert ctx["max_length"] == 100
+    assert ctx["actual_length"] == 101
+
+
+@allure.title("Duplicate ids are collapsed, not rejected")
+@allure.tag("PROD-028")
+@allure.severity(allure.severity_level.MINOR)
+def test_duplicate_ids_are_collapsed_not_rejected(product_client, new_product):
+    product_id = new_product["entity_id"]
+
+    response = product_client.bulk_products(
+        [product_id, product_id], action="deactivate"
+    )
+
+    assert_status_code(response, 200)
+    body = response.json()
+    assert body["summary"]["total"] == 1
+    assert len(body["results"]) == 1
+
+
+@allure.title("Bulk without products:manage returns 403")
+@allure.tag("PROD-029")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_bulk_without_permission_returns_403(customer_products):
+    response = customer_products.bulk_products([str(uuid.uuid4())], action="deactivate")
+
+    assert_error(response, 403, "INSUFFICIENT_PERMISSIONS")
+
+
+@allure.title("Activating a soft-deleted product fails per-item, not the whole batch")
+@allure.tag("PROD-030")
+@allure.severity(allure.severity_level.NORMAL)
+def test_activating_a_soft_deleted_product_fails_per_item(product_client, new_product):
+    product_id = new_product["entity_id"]
+    product_client.delete_product(product_id)
+
+    response = product_client.bulk_products([product_id], action="activate")
+
+    assert_status_code(response, 207)
+    result = response.json()["results"][0]
+    assert result["success"] is False
+    assert result["code"] == "PRODUCT_DELETED"
+
+
+@allure.title("Bulk requires no If-Match precondition")
+@allure.tag("PROD-031")
+@allure.severity(allure.severity_level.MINOR)
+def test_bulk_requires_no_if_match_precondition(product_client, new_product):
+    response = product_client.bulk_products(
+        [new_product["entity_id"]], action="deactivate"
+    )
+
+    assert_status_code(response, 200)
+
+
+# ---------------------------------------------------------------------------
+# Concurrency (ETag / If-Match)
+# ---------------------------------------------------------------------------
+
+
+@allure.title("GET returns an ETag header matching the body's version")
+@allure.tag("PROD-032")
+@allure.severity(allure.severity_level.NORMAL)
+def test_get_returns_etag_header_matching_the_bodys_version(
+    product_client, new_product
+):
+    response = product_client.get_product(new_product["entity_id"])
+
+    version = response.json()["version"]
+    assert response.headers["ETag"] == f'"{version}"'
+
+
+@allure.title("Updating without If-Match returns 428")
+@allure.tag("PROD-033")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_updating_without_if_match_returns_428(product_client, new_product):
+    response = product_client.update_product(
+        new_product["entity_id"], if_match=None, name=fake.unique.company()
+    )
+
+    error = assert_error(response, 428, "PRECONDITION_REQUIRED")
+    assert "current_etag" in error["details"]
+
+
+@allure.title("Deleting without If-Match returns 428")
+@allure.tag("PROD-034")
+@allure.severity(allure.severity_level.NORMAL)
+def test_deleting_without_if_match_returns_428(product_client, new_product):
+    response = product_client.delete_product(new_product["entity_id"], if_match=None)
+
+    assert_error(response, 428, "PRECONDITION_REQUIRED")
+
+
+@allure.title("Updating with a stale If-Match returns 412")
+@allure.tag("PROD-035")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_updating_with_a_stale_if_match_returns_412(product_client, new_product):
+    product_id = new_product["entity_id"]
+    original_version = product_client.get_product(product_id).json()["version"]
+    product_client.update_product(product_id, name=fake.unique.company())
+
+    response = product_client.update_product(
+        product_id, if_match=f'"{original_version}"', name=fake.unique.company()
+    )
+
+    error = assert_error(response, 412, "PRECONDITION_FAILED")
+    assert error["details"]["provided"] == [str(original_version)]
+
+
+@allure.title("Deleting with a stale If-Match returns 412")
+@allure.tag("PROD-036")
+@allure.severity(allure.severity_level.NORMAL)
+def test_deleting_with_a_stale_if_match_returns_412(product_client, new_product):
+    product_id = new_product["entity_id"]
+    original_version = product_client.get_product(product_id).json()["version"]
+    product_client.update_product(product_id, name=fake.unique.company())
+
+    response = product_client.delete_product(
+        product_id, if_match=f'"{original_version}"'
+    )
+
+    assert_error(response, 412, "PRECONDITION_FAILED")
+    assert product_client.get_product(product_id).json()["deleted_at"] is None
+
+
+@allure.title("If-Match: * always succeeds regardless of actual version")
+@allure.tag("PROD-037")
+@allure.severity(allure.severity_level.NORMAL)
+def test_if_match_star_always_succeeds(product_client, new_product):
+    response = product_client.update_product(
+        new_product["entity_id"], if_match="*", name=fake.unique.company()
+    )
+
+    assert_status_code(response, 200)
