@@ -385,6 +385,8 @@ def test_atomic_with_every_id_valid_succeeds(product_client, factory):
 
     assert_status_code(response, 200)
     assert response.json()["applied"] is True
+    assert product_client.get_product(first).json()["is_active"] is False
+    assert product_client.get_product(second).json()["is_active"] is False
 
 
 @allure.title("Atomic with any invalid id rolls back everything")
