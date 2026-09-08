@@ -30,6 +30,20 @@ Shared pytest fixtures.
                        customer, for permission-boundary negative tests
     inventory_for   -> resolves a product's inventory record by its SKU
     new_inventory   -> a fresh throwaway product's inventory record
+    order_client    -> OrderClient authenticated as the seeded ADMIN
+                       account, for staff-only order actions
+    customer_orders -> OrderClient for the shared throwaway customer
+                       (logged_in_customer) - most order scenarios act as
+                       this one customer
+    customer_cart   -> CartClient for that same throwaway customer
+    new_customer_orders -> creates an independent throwaway customer and
+                       returns (customer, OrderClient), for scenarios that
+                       need more than one distinct customer
+    new_order       -> a fresh throwaway order (1x a throwaway product) for
+                       the shared customer_orders customer - for scenarios
+                       that just need *an* order to act on, not a specific
+                       product/price/quantity
+    idempotency_key -> a fresh, unique Idempotency-Key value
 """
 
 import os
@@ -41,7 +55,9 @@ from dotenv import load_dotenv
 from core.admin_client import AdminClient
 from core.api_client import ApiClient
 from core.auth_client import AuthClient
+from core.cart_client import CartClient
 from core.inventory_client import InventoryClient
+from core.order_client import OrderClient
 from core.product_client import ProductClient
 from utils.helpers import seeded_account
 
@@ -189,3 +205,55 @@ def inventory_for(inventory_client):
 def new_inventory(factory, inventory_for):
     product = factory("product")
     return inventory_for(product["attributes"]["sku"])
+
+
+@pytest.fixture(scope="session")
+def order_client(admin_session) -> OrderClient:
+    return OrderClient(admin_session)
+
+
+@pytest.fixture
+def customer_orders(api_url, logged_in_customer) -> OrderClient:
+    _, token_pair = logged_in_customer
+    return OrderClient(ApiClient(api_url, token_pair["access_token"]))
+
+
+@pytest.fixture
+def customer_cart(api_url, logged_in_customer) -> CartClient:
+    _, token_pair = logged_in_customer
+    return CartClient(ApiClient(api_url, token_pair["access_token"]))
+
+
+@pytest.fixture
+def new_customer_orders(factory, auth_client, api_url):
+    """Mint an independent throwaway customer + OrderClient on demand.
+
+    logged_in_customer/customer_orders share one customer per test; scenarios
+    that need two or more distinct customers (isolation checks) call this
+    instead.
+    """
+
+    def _create():
+        new_customer = factory("customer")
+        token_pair = auth_client.login(
+            new_customer["attributes"]["email"], new_customer["attributes"]["password"]
+        ).json()
+        return new_customer, OrderClient(ApiClient(api_url, token_pair["access_token"]))
+
+    return _create
+
+
+@pytest.fixture
+def new_order(new_product, customer_orders) -> dict:
+    response = customer_orders.create_order(
+        items=[{"product_id": new_product["entity_id"], "quantity": 1}]
+    )
+    assert (
+        response.status_code == 201
+    ), f"Could not create a throwaway order: {response.status_code} {response.text}"
+    return response.json()
+
+
+@pytest.fixture
+def idempotency_key() -> str:
+    return f"idem-{uuid.uuid4().hex[:12]}"
