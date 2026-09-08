@@ -23,6 +23,7 @@ supports it, and which automated test now guards each fix.
 |---|---|---|---|---|---|
 | [BUG-001](#bug-001) | High | Fixed | API | Product page served stale stock after an order, via a 304 | PROD-15 |
 | [BUG-002](#bug-002) | Medium | Open | UI | Staff have no navigation to the admin dashboard | — |
+| [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-014 |
 | [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-002 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
 | [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-004 |
@@ -197,6 +198,95 @@ Add a dashboard entry to the account menu (and the mobile drawer) behind the
 to `/dashboard` after login when no explicit return path was requested.
 
 Not applied — outside the scope of the change that was authorised.
+
+---
+
+## BUG-003
+
+**Concurrent `PATCH /inventory/{id}` requests can silently lose stock
+adjustments - no row-level locking on the read.**
+
+| | |
+|---|---|
+| Severity | High |
+| Status | Open |
+| Area | Backend — `inventory_service.adjust_stock` |
+| Found | Designing inventory API test scenarios - probing concurrent stock
+adjustments before writing INV-014 |
+| Regression test | `INV-014` in `tests/test_inventory.py` (currently
+expected to fail against the live SUT) |
+
+### What happens
+
+`adjust_stock` reads the inventory row via
+`inventory_repository.get_by_id()`, computes `new_stock = inventory.stock +
+stock_delta` in Python, and writes it back - a classic read-modify-write
+with no locking in between. Two concurrent requests against the same record
+can both read the same starting `stock`, both compute their own new value
+from it, and whichever commits second overwrites the first's write instead
+of building on it.
+
+The order-checkout path already knows this pattern needs a lock -
+`order_service.py` reads the row via
+`inventory_repository.get_for_product(db, product_id, lock=True)`
+(`SELECT ... FOR UPDATE`) specifically so concurrent checkouts of the same
+product serialize (the function's own docstring explains why). `adjust_stock`
+calls a different repository function, `get_by_id`, which has no `lock`
+parameter at all - the pattern was applied correctly in one place and missed
+in the other.
+
+### Steps to reproduce
+
+1. Create a product with a known `stock` (e.g. 1000)
+2. Fire 20 concurrent `PATCH /inventory/{id}` requests, each
+   `{"stock_delta": 1}`
+3. Once all 20 have returned `200`, `GET` the record's final `stock` and its
+   transaction history
+
+**Expected:** `stock` is `1020`; 20 transactions recorded.
+**Actual:** `stock` lands somewhere between 1003 and 1005 depending on the
+run - every one of the 20 transactions is still recorded (the audit trail is
+complete and correct), but 15-17 of the actual stock increments never
+persisted.
+
+### Evidence
+
+Live against the running SUT, four consecutive trials of the same 20x
+`stock_delta=1` probe from a fresh `stock=1000` record:
+
+```
+trial 1: before=1000 after=1004 expected=1020 transactions_recorded=20
+trial 2: before=1000 after=1005 expected=1020 transactions_recorded=20
+trial 3: before=1000 after=1004 expected=1020 transactions_recorded=20
+trial 4: before=1000 after=1005 expected=1020 transactions_recorded=20
+```
+
+Every trial: 20/20 requests returned `200`, 20/20 transactions were recorded
+with correct per-request `quantity_change`/`stock_after` values, yet the
+`stock` column itself only reflects 3-5 of the 20 increments. This is not a
+rejected-request or validation issue - every write was individually accepted
+and individually logged; they overwrote each other.
+
+A single run with no concurrency (20 sequential requests, one at a time)
+produces the correct `1020` every time - the defect only manifests under
+genuine concurrent access, which is exactly what row locking exists to
+guard against.
+
+### Root cause
+
+`inventory_service.adjust_stock` mutates `inventory.stock` after reading it
+through a repository call with no `SELECT ... FOR UPDATE`, so two
+overlapping transactions can both hold the pre-adjustment value in memory
+at once. Contrast with the correctly-locked read one call away in
+`order_service.py`.
+
+### Suggested fix
+
+Have `adjust_stock` acquire the row lock before mutating, either via a new
+`lock=True`-capable lookup mirroring `get_for_product`, or by adding a
+`lock` parameter to `get_by_id` itself and passing `lock=True` from
+`adjust_stock`. Not applied - outside the scope of the change that was
+authorised, and this file records testing findings rather than making them.
 
 ---
 
