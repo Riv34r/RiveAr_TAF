@@ -42,14 +42,19 @@ def test_filtering_by_status_returns_only_matching_records(
     inventory_client, new_inventory
 ):
     sku = new_inventory["product_sku"]
-
-    response = inventory_client.list_inventory(
-        search=sku, status=new_inventory["status"]
+    actual_status = new_inventory["status"]
+    other_status = next(
+        s for s in ("IN_STOCK", "LOW_STOCK", "OUT_OF_STOCK") if s != actual_status
     )
 
-    assert_status_code(response, 200)
-    items = response.json()["items"]
-    assert [item["id"] for item in items] == [new_inventory["id"]]
+    # search=sku alone would already narrow to this one record, so a wrong
+    # status has to come back empty - otherwise the filter would be a no-op.
+    matching = inventory_client.list_inventory(search=sku, status=actual_status)
+    assert_status_code(matching, 200)
+    assert [item["id"] for item in matching.json()["items"]] == [new_inventory["id"]]
+
+    non_matching = inventory_client.list_inventory(search=sku, status=other_status)
+    assert non_matching.json()["items"] == []
 
 
 @allure.title("Searching by product name or SKU returns the matching record")

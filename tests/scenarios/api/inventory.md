@@ -67,7 +67,11 @@ given stock ends up with is INV-012's concern, not this one.
 
 **Expected Result:**
 - Response status is 200.
-- Filtering by the record's own `status` returns exactly that record.
+- Filtering by the record's own `status` (combined with `search` on its
+  SKU, for pagination safety) returns exactly that record.
+- Filtering by a *different* status (same `search`) returns nothing - the
+  negative case, without it `search` alone narrowing to one record would
+  make the filter's actual effect unverifiable either way.
 
 ### INV-003 — Searching by product name or SKU returns the matching record
 
