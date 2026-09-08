@@ -24,6 +24,12 @@ Shared pytest fixtures.
     public_products -> ProductClient with no authentication, for the
                        public/permission-boundary side of a check
     new_product     -> a fresh throwaway product via factory("product")
+    inventory_client -> InventoryClient authenticated as the seeded ADMIN
+                       account (holds inventory:manage)
+    customer_inventory -> InventoryClient authenticated as a throwaway
+                       customer, for permission-boundary negative tests
+    inventory_for   -> resolves a product's inventory record by its SKU
+    new_inventory   -> a fresh throwaway product's inventory record
 """
 
 import os
@@ -35,6 +41,7 @@ from dotenv import load_dotenv
 from core.admin_client import AdminClient
 from core.api_client import ApiClient
 from core.auth_client import AuthClient
+from core.inventory_client import InventoryClient
 from core.product_client import ProductClient
 from utils.helpers import seeded_account
 
@@ -147,3 +154,38 @@ def public_products(api) -> ProductClient:
 @pytest.fixture
 def new_product(factory):
     return factory("product")
+
+
+@pytest.fixture(scope="session")
+def inventory_client(admin_session) -> InventoryClient:
+    return InventoryClient(admin_session)
+
+
+@pytest.fixture
+def customer_inventory(api_url, logged_in_customer) -> InventoryClient:
+    _, token_pair = logged_in_customer
+    return InventoryClient(ApiClient(api_url, token_pair["access_token"]))
+
+
+@pytest.fixture
+def inventory_for(inventory_client):
+    """Resolve a product's inventory record by its SKU.
+
+    There is no standalone inventory factory - a record's lifetime matches
+    its product's - so tests needing a specific stock create a product via
+    factory("product", stock=...) and resolve the resulting record here.
+    """
+
+    def _resolve(sku: str) -> dict:
+        items = inventory_client.list_inventory(search=sku).json()["items"]
+        record = next((i for i in items if i["product_sku"] == sku), None)
+        assert record is not None, f"No inventory record found for SKU {sku}"
+        return record
+
+    return _resolve
+
+
+@pytest.fixture
+def new_inventory(factory, inventory_for):
+    product = factory("product")
+    return inventory_for(product["attributes"]["sku"])
