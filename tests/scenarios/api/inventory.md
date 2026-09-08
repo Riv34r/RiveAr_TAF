@@ -7,12 +7,18 @@ OpenAPI tag `inventory`) cross-checked against
 `backend/app/api/routes/inventory.py`, and `backend/app/models/inventory.py`
 in the RiveAr App repository.
 
-Every inventory record is created automatically alongside its product
-(`product_service.create_product`, `stock=0`, `reorder_threshold=15`) or by
-the test factory (`factory("product", stock=...)`, same threshold via
-`DEFAULT_REORDER_THRESHOLD`) - there is no standalone factory entity for
-`inventory`, and no create/delete endpoint in this API; a record's lifetime
-matches its product's.
+Every inventory record is created automatically alongside its product -
+there is no standalone factory entity for `inventory`, and no create/delete
+endpoint in this API; a record's lifetime matches its product's. Two
+different paths create that product, with two different stock defaults:
+
+- `POST /products` (`product_service.create_product`) always starts a new
+  product at `stock=0`, `reorder_threshold=15`.
+- The test factory (`factory("product", stock=...)`) defaults to `stock=100`
+  when no override is given, `reorder_threshold=DEFAULT_REORDER_THRESHOLD`
+  (also 15). Tests in this suite use the factory, so an unadorned
+  `factory("product")`/`new_inventory` starts at `stock=100`, `IN_STOCK` -
+  not `stock=0` - unless a scenario explicitly overrides it (e.g. INV-012).
 
 `InventoryTransactionType` has six values (`PURCHASE`, `RESERVATION`,
 `RELEASE`, `SALE`, `ADJUSTMENT`, `RETURN`), but only `ADJUSTMENT` is
