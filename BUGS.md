@@ -24,6 +24,7 @@ supports it, and which automated test now guards each fix.
 | [BUG-001](#bug-001) | High | Fixed | API | Product page served stale stock after an order, via a 304 | PROD-15 |
 | [BUG-002](#bug-002) | Medium | Open | UI | Staff have no navigation to the admin dashboard | — |
 | [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-014 |
+| [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-016 |
 | [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-002 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
 | [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-004 |
@@ -287,6 +288,99 @@ Have `adjust_stock` acquire the row lock before mutating, either via a new
 `lock` parameter to `get_by_id` itself and passing `lock=True` from
 `adjust_stock`. Not applied - outside the scope of the change that was
 authorised, and this file records testing findings rather than making them.
+
+---
+
+## BUG-004
+
+**Concurrent order creation for the same product loses stock
+reservations - even though the read is explicitly row-locked.**
+
+| | |
+|---|---|
+| Severity | High |
+| Status | Open |
+| Area | Backend — `order_service._resolve_line_items` |
+| Found | Designing orders API test scenarios - probing concurrent order
+creation before writing ORD-016, after finding the superficially similar
+`BUG-003` |
+| Regression test | `ORD-016` in `tests/test_orders.py` (currently
+expected to fail against the live SUT) |
+
+### What happens
+
+`_resolve_line_items` reads each product's inventory row via
+`inventory_repository.get_for_product(db, product_id, lock=True)` - a real
+`SELECT ... FOR UPDATE`, exactly the pattern that's *missing* in `BUG-003`.
+By the standard Postgres locking model, a second transaction's
+`SELECT ... FOR UPDATE` on a row already locked by an uncommitted first
+transaction should block, then - once the first commits - re-read the
+now-current row and lock it in turn. That should make concurrent
+reservations serialize correctly. It does not: concurrent order creation
+for the same product still loses `reserved_stock` increments, with the
+same signature as `BUG-003` (every request succeeds, every
+`InventoryTransaction` is individually recorded, only the `reserved_stock`
+column itself ends up wrong).
+
+This makes it a different, and arguably more serious, defect than
+`BUG-003`: that one is missing a lock outright, with a straightforward
+fix. This one has the lock in place and still loses updates, which points
+at something wrong with how the lock, the session, or the transaction
+boundary interact - not simply "add `lock=True` here too."
+
+### Steps to reproduce
+
+1. Create a product with ample stock (e.g. 500)
+2. Fire 2 (or 10) concurrent `POST /orders`, each ordering 1 unit of that
+   product
+3. Check the product's `reserved_stock` via `GET /inventory` and its
+   transaction count via `GET /inventory/{id}/transactions`
+
+**Expected:** `reserved_stock` equals the number of orders placed (2, or
+10); that many `RESERVATION` transactions recorded.
+**Actual:** every order returns `201`, every `RESERVATION` transaction is
+recorded (2/2, or 10/10), but `reserved_stock` is `1` regardless of how
+many concurrent orders were placed.
+
+### Evidence
+
+Live against the running SUT:
+
+```
+2 concurrent orders:  both 201, reserved_stock = 1 (expected 2)
+10 concurrent orders: all 201, 10/10 RESERVATION transactions, reserved_stock = 1 (expected 10)
+```
+
+The 10-concurrent case was run three times; every trial landed on exactly
+`reserved_stock = 1`. That it is consistently exactly `1`, not a variable
+shortfall the way `BUG-003`'s losses ranged 3-5 out of 20, is itself a
+clue: it reads as every concurrent transaction computing its update from
+the *same* pre-existing value (as if none of them ever actually blocked
+waiting for another's lock), with whichever commits last simply
+overwriting the rest - rather than a partial, timing-dependent loss.
+
+A sequential (non-concurrent) run of the same N order creations produces
+the correct `reserved_stock = N` every time.
+
+### Root cause
+
+Not established. The code takes the correct row lock
+(`get_for_product(..., lock=True)`), which under standard Postgres
+`READ COMMITTED` semantics should prevent exactly this. Candidates worth
+investigating, none confirmed: whether `with_for_update()` is emitting the
+`FOR UPDATE` clause SQLAlchemy expects it to in this call path, the
+engine/session's actual isolation level and transaction boundaries
+(`app/db/session.py` - `create_engine(..., pool_pre_ping=True)`, plain
+`sessionmaker(autocommit=False, autoflush=False)`), and whether something
+about `_resolve_line_items` running inside `_build_order` (called from
+`create_order`, which commits once at the very end) defers the actual
+lock-acquiring `SELECT` differently than a direct call would.
+
+### Suggested fix
+
+Requires further investigation into why the existing lock isn't
+serializing these transactions before attempting a fix - not applied here.
+This file records testing findings rather than making them.
 
 ---
 
