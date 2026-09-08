@@ -20,6 +20,27 @@ def assert_valid_token_pair(tokens: TokenResponse) -> None:
     assert tokens.expires_in > 0
 
 
+def assert_paginated_response(response, expected_status: int = 200) -> dict:
+    """Assert a paginated list envelope ({"items", "pagination"}), and return the body.
+
+    Every listing endpoint (products, inventory, orders, ...) shares this
+    shape, so callers just add whatever content assertions are specific to
+    the endpoint under test.
+    """
+    assert_status_code(response, expected_status)
+
+    body = response.json()
+    assert "items" in body, f"Response has no 'items': {body}"
+    assert set(body["pagination"]) >= {
+        "page",
+        "page_size",
+        "total",
+        "total_pages",
+    }, f"Response 'pagination' missing expected keys: {body.get('pagination')}"
+
+    return body
+
+
 def assert_error(response, expected_status: int, expected_code: str) -> dict:
     """Assert the response is RiveAr's structured error envelope, and return it.
 
