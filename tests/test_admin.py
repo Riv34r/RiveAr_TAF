@@ -7,9 +7,66 @@ import pytest
 
 from core.admin_client import AdminClient
 from core.api_client import ApiClient
+from models.admin import AuditLogResponse
+from models.auth import UserResponse
+from models.common import PaginatedResponse
 from utils.helpers import assert_error, assert_status_code
 
 pytestmark = allure.feature("Admin")
+
+
+# ---------------------------------------------------------------------------
+# Permission boundary
+# ---------------------------------------------------------------------------
+
+ADMIN_ENDPOINTS = [
+    ("list_users", lambda c: c.list_users()),
+    ("get_user", lambda c: c.get_user(uuid.uuid4())),
+    ("update_user", lambda c: c.update_user(uuid.uuid4(), is_active=False)),
+    ("list_audit_logs", lambda c: c.list_audit_logs()),
+]
+
+
+@allure.title("Every admin endpoint requires authentication - {name}")
+@allure.tag("ADMIN-001")
+@allure.severity(allure.severity_level.NORMAL)
+@pytest.mark.parametrize(
+    "name,call", ADMIN_ENDPOINTS, ids=[e[0] for e in ADMIN_ENDPOINTS]
+)
+def test_admin_endpoints_require_authentication(api, name, call):
+    response = call(AdminClient(api))
+
+    assert_error(response, 401, "TOKEN_MISSING")
+
+
+# ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
+
+
+@allure.title("Listing users response matches the UserResponse schema")
+@allure.tag("ADMIN-002")
+@allure.severity(allure.severity_level.NORMAL)
+def test_list_users_response_matches_schema(admin_client):
+    response = admin_client.list_users(page_size=1)
+
+    assert_status_code(response, 200)
+    body = PaginatedResponse[UserResponse].model_validate(response.json())
+    assert body.items
+
+
+@allure.title("Listing audit logs response matches the AuditLogResponse schema")
+@allure.tag("ADMIN-003")
+@allure.severity(allure.severity_level.NORMAL)
+def test_list_audit_logs_response_matches_schema(admin_client, new_customer):
+    user_id = new_customer["attributes"]["user_id"]
+    admin_client.update_user(user_id, is_active=False)
+
+    response = admin_client.list_audit_logs(entity_id=user_id)
+
+    assert_status_code(response, 200)
+    body = PaginatedResponse[AuditLogResponse].model_validate(response.json())
+    assert body.items
 
 
 # ---------------------------------------------------------------------------
@@ -18,7 +75,7 @@ pytestmark = allure.feature("Admin")
 
 
 @allure.title("Listing users returns every account, paginated")
-@allure.tag("ADMIN-001")
+@allure.tag("ADMIN-004")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_users_returns_every_account_paginated(admin_client, seed_manifest):
     response = admin_client.list_users(page_size=100)
@@ -33,7 +90,7 @@ def test_listing_users_returns_every_account_paginated(admin_client, seed_manife
 
 
 @allure.title("Listing users without the required permission returns 403")
-@allure.tag("ADMIN-002")
+@allure.tag("ADMIN-005")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_users_without_permission_returns_403(customer_client):
     response = customer_client.list_users()
@@ -43,7 +100,7 @@ def test_listing_users_without_permission_returns_403(customer_client):
 
 
 @allure.title("Listing users with no token returns 401")
-@allure.tag("ADMIN-003")
+@allure.tag("ADMIN-006")
 @allure.severity(allure.severity_level.NORMAL)
 def test_listing_users_with_no_token_returns_401(api):
     response = AdminClient(api).list_users()
@@ -52,7 +109,7 @@ def test_listing_users_with_no_token_returns_401(api):
 
 
 @allure.title("Getting a known user by ID succeeds")
-@allure.tag("ADMIN-004")
+@allure.tag("ADMIN-007")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_a_known_user_by_id_succeeds(admin_client, customer):
     response = admin_client.get_user(customer["user_id"])
@@ -65,7 +122,7 @@ def test_getting_a_known_user_by_id_succeeds(admin_client, customer):
 
 
 @allure.title("Getting an unknown user ID returns 404")
-@allure.tag("ADMIN-005")
+@allure.tag("ADMIN-008")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_an_unknown_user_id_returns_404(admin_client):
     response = admin_client.get_user(uuid.uuid4())
@@ -74,7 +131,7 @@ def test_getting_an_unknown_user_id_returns_404(admin_client):
 
 
 @allure.title("Disabling a user's account takes effect immediately")
-@allure.tag("ADMIN-006")
+@allure.tag("ADMIN-009")
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_disabling_a_users_account_takes_effect_immediately(
@@ -92,7 +149,7 @@ def test_disabling_a_users_account_takes_effect_immediately(
 
 
 @allure.title("Reassigning a user's roles replaces the previous set")
-@allure.tag("ADMIN-007")
+@allure.tag("ADMIN-010")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_reassigning_a_users_roles_replaces_the_previous_set(
     admin_client, new_customer
@@ -106,7 +163,7 @@ def test_reassigning_a_users_roles_replaces_the_previous_set(
 
 
 @allure.title("Setting an empty roles list is rejected")
-@allure.tag("ADMIN-008")
+@allure.tag("ADMIN-011")
 @allure.severity(allure.severity_level.NORMAL)
 def test_setting_an_empty_roles_list_is_rejected(admin_client, new_customer):
     user_id = new_customer["attributes"]["user_id"]
@@ -117,7 +174,7 @@ def test_setting_an_empty_roles_list_is_rejected(admin_client, new_customer):
 
 
 @allure.title("Updating an unknown user ID returns 404")
-@allure.tag("ADMIN-009")
+@allure.tag("ADMIN-012")
 @allure.severity(allure.severity_level.NORMAL)
 def test_updating_an_unknown_user_id_returns_404(admin_client):
     response = admin_client.update_user(uuid.uuid4(), is_active=False)
@@ -126,7 +183,7 @@ def test_updating_an_unknown_user_id_returns_404(admin_client):
 
 
 @allure.title("An admin can disable their own account")
-@allure.tag("ADMIN-010")
+@allure.tag("ADMIN-013")
 @allure.severity(allure.severity_level.NORMAL)
 def test_an_admin_can_disable_their_own_account(
     admin_client, new_customer, auth_client, api_url
@@ -147,7 +204,7 @@ def test_an_admin_can_disable_their_own_account(
 
 
 @allure.title("A malformed user_id (not a UUID) returns 422, not 404")
-@allure.tag("ADMIN-015")
+@allure.tag("ADMIN-014")
 @allure.severity(allure.severity_level.MINOR)
 def test_malformed_user_id_returns_422(admin_client):
     response = admin_client.get_user("not-a-uuid")
@@ -156,7 +213,7 @@ def test_malformed_user_id_returns_422(admin_client):
 
 
 @allure.title("Setting an unrecognised role name is rejected")
-@allure.tag("ADMIN-016")
+@allure.tag("ADMIN-015")
 @allure.severity(allure.severity_level.MINOR)
 def test_setting_an_unrecognised_role_name_is_rejected(admin_client, new_customer):
     user_id = new_customer["attributes"]["user_id"]
@@ -172,7 +229,7 @@ def test_setting_an_unrecognised_role_name_is_rejected(admin_client, new_custome
 
 
 @allure.title("Listing audit logs returns recent entries, paginated")
-@allure.tag("ADMIN-011")
+@allure.tag("ADMIN-016")
 @allure.severity(allure.severity_level.NORMAL)
 def test_listing_audit_logs_returns_recent_entries_paginated(
     admin_client, new_customer
@@ -192,7 +249,7 @@ def test_listing_audit_logs_returns_recent_entries_paginated(
 
 
 @allure.title("Listing audit logs without audit_logs:view returns 403")
-@allure.tag("ADMIN-012")
+@allure.tag("ADMIN-017")
 @allure.severity(allure.severity_level.MINOR)
 def test_listing_audit_logs_without_permission_returns_403(customer_client):
     response = customer_client.list_audit_logs()
@@ -202,7 +259,7 @@ def test_listing_audit_logs_without_permission_returns_403(customer_client):
 
 
 @allure.title("Filtering audit logs by action returns only matching entries")
-@allure.tag("ADMIN-013")
+@allure.tag("ADMIN-018")
 @allure.severity(allure.severity_level.NORMAL)
 def test_filtering_audit_logs_by_action_returns_only_matching_entries(
     admin_client, new_customer
@@ -219,7 +276,7 @@ def test_filtering_audit_logs_by_action_returns_only_matching_entries(
 
 
 @allure.title("Granting a permission is itself recorded in the audit log")
-@allure.tag("ADMIN-014")
+@allure.tag("ADMIN-019")
 @allure.severity(allure.severity_level.NORMAL)
 def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
     roles = admin_client.list_roles().json()
@@ -254,7 +311,7 @@ def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
 
 
 @allure.title("Combining audit log filters narrows the result, not widens it")
-@allure.tag("ADMIN-017")
+@allure.tag("ADMIN-020")
 @allure.severity(allure.severity_level.NORMAL)
 def test_combining_audit_log_filters_narrows_the_result(admin_client, factory):
     first_id = factory("customer")["attributes"]["user_id"]

@@ -23,11 +23,11 @@ supports it, and which automated test now guards each fix.
 |---|---|---|---|---|---|
 | [BUG-001](#bug-001) | High | Fixed | API | Product page served stale stock after an order, via a 304 | PROD-15 |
 | [BUG-002](#bug-002) | Medium | Open | UI | Staff have no navigation to the admin dashboard | — |
-| [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-014 |
-| [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-016 |
-| [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-002 |
+| [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-018 |
+| [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-020 |
+| [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-005 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
-| [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-004 |
+| [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-007 |
 | [OBS-004](#obs-004) | Low | Open | API | `/test/cleanup` on a "customer" leaves the User account behind | — |
 
 ---
@@ -213,8 +213,8 @@ adjustments - no row-level locking on the read.**
 | Status | Open |
 | Area | Backend — `inventory_service.adjust_stock` |
 | Found | Designing inventory API test scenarios - probing concurrent stock
-adjustments before writing INV-014 |
-| Regression test | `INV-014` in `tests/test_inventory.py` (currently
+adjustments before writing INV-018 |
+| Regression test | `INV-018` in `tests/test_inventory.py` (currently
 expected to fail against the live SUT) |
 
 ### What happens
@@ -302,9 +302,9 @@ reservations - even though the read is explicitly row-locked.**
 | Status | Open |
 | Area | Backend — `order_service._resolve_line_items` |
 | Found | Designing orders API test scenarios - probing concurrent order
-creation before writing ORD-016, after finding the superficially similar
+creation before writing ORD-020, after finding the superficially similar
 `BUG-003` |
-| Regression test | `ORD-016` in `tests/test_orders.py` (currently
+| Regression test | `ORD-020` in `tests/test_orders.py` (currently
 expected to fail against the live SUT) |
 
 ### What happens
@@ -393,7 +393,7 @@ This file records testing findings rather than making them.
 | Severity | Low |
 | Status | Open — decision needed |
 | Area | Backend `GET /api/v1/products` + storefront |
-| Covered by | `PROD-002` (documents current behaviour) |
+| Covered by | `PROD-005` (documents current behaviour) |
 
 `GET /products` applies no availability filter unless the caller passes
 `?status=active`. The storefront sends that parameter only when the shopper
@@ -447,7 +447,7 @@ value rather than matching its text.
 | Severity | Low |
 | Status | Open |
 | Area | Backend — validation errors |
-| Covered by | `PROD-004` (asserts the status and code only) |
+| Covered by | `PROD-007` (asserts the status and code only) |
 
 An invalid `sort_by` returns the permitted values as prose, with `details`
 empty:

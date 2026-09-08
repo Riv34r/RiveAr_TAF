@@ -1,13 +1,16 @@
 """Test cases for /products/*.
 
-Implements PROD-001 through PROD-037 from tests/scenarios/api/products.md.
+Implements PROD-001 through PROD-040 from tests/scenarios/api/products.md.
 """
 
 import uuid
 
 import allure
+import pytest
 from faker import Faker
 
+from core.product_client import ProductClient
+from models.product import BulkOperationResponse, ProductResponse
 from utils.helpers import assert_error, assert_status_code
 
 pytestmark = allure.feature("Products")
@@ -16,12 +19,68 @@ fake = Faker()
 
 
 # ---------------------------------------------------------------------------
+# Permission boundary
+# ---------------------------------------------------------------------------
+
+PRODUCT_ENDPOINTS = [
+    ("create_product", lambda c: c.create_product(sku="X", name="X", price="1.00")),
+    ("update_product", lambda c: c.update_product(uuid.uuid4(), name="X")),
+    ("delete_product", lambda c: c.delete_product(uuid.uuid4())),
+    ("restore_product", lambda c: c.restore_product(uuid.uuid4())),
+    ("bulk_products", lambda c: c.bulk_products([uuid.uuid4()], action="deactivate")),
+]
+
+
+@allure.title("Every products:manage-only endpoint requires authentication - {name}")
+@allure.tag("PROD-001")
+@allure.severity(allure.severity_level.NORMAL)
+@pytest.mark.parametrize(
+    "name,call", PRODUCT_ENDPOINTS, ids=[e[0] for e in PRODUCT_ENDPOINTS]
+)
+def test_product_endpoints_require_authentication(api, name, call):
+    response = call(ProductClient(api))
+
+    assert_error(response, 401, "TOKEN_MISSING")
+
+
+# ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
+
+
+@allure.title("Product response matches the ProductResponse schema")
+@allure.tag("PROD-002")
+@allure.severity(allure.severity_level.NORMAL)
+def test_product_response_matches_schema(product_client, factory, new_product):
+    category_id = factory("category")["entity_id"]
+    response = product_client.update_product(
+        new_product["entity_id"], category_ids=[category_id]
+    )
+
+    assert_status_code(response, 200)
+    body = ProductResponse.model_validate(response.json())
+    assert body.categories
+
+
+@allure.title("Bulk operation response matches the BulkOperationResponse schema")
+@allure.tag("PROD-003")
+@allure.severity(allure.severity_level.NORMAL)
+def test_bulk_response_matches_schema(product_client, new_product):
+    response = product_client.bulk_products(
+        [new_product["entity_id"]], action="deactivate"
+    )
+
+    assert_status_code(response, 200)
+    BulkOperationResponse.model_validate(response.json())
+
+
+# ---------------------------------------------------------------------------
 # Listing
 # ---------------------------------------------------------------------------
 
 
 @allure.title("Listing products returns paginated results")
-@allure.tag("PROD-001")
+@allure.tag("PROD-004")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_products_returns_paginated_results(product_client):
     response = product_client.list_products()
@@ -33,7 +92,7 @@ def test_listing_products_returns_paginated_results(product_client):
 
 
 @allure.title("Default listing includes inactive products")
-@allure.tag("PROD-002")
+@allure.tag("PROD-005")
 @allure.severity(allure.severity_level.NORMAL)
 def test_default_listing_includes_inactive_products(product_client, factory):
     name = fake.unique.company()
@@ -47,7 +106,7 @@ def test_default_listing_includes_inactive_products(product_client, factory):
 
 
 @allure.title("Filtering by status=active excludes inactive products")
-@allure.tag("PROD-003")
+@allure.tag("PROD-006")
 @allure.severity(allure.severity_level.NORMAL)
 def test_filtering_by_status_active_excludes_inactive_products(product_client, factory):
     name = fake.unique.company()
@@ -60,7 +119,7 @@ def test_filtering_by_status_active_excludes_inactive_products(product_client, f
 
 
 @allure.title("An invalid sort_by returns 422 with the allowed values in the message")
-@allure.tag("PROD-004")
+@allure.tag("PROD-007")
 @allure.severity(allure.severity_level.MINOR)
 def test_invalid_sort_by_returns_422(product_client):
     response = product_client.list_products(sort_by="not_a_real_column")
@@ -70,7 +129,7 @@ def test_invalid_sort_by_returns_422(product_client):
 
 
 @allure.title("Searching by name or description returns matching products")
-@allure.tag("PROD-005")
+@allure.tag("PROD-008")
 @allure.severity(allure.severity_level.NORMAL)
 def test_searching_returns_matching_products(product_client, factory):
     name = fake.unique.company()
@@ -84,7 +143,7 @@ def test_searching_returns_matching_products(product_client, factory):
 
 
 @allure.title("Combining price filters narrows the result")
-@allure.tag("PROD-006")
+@allure.tag("PROD-009")
 @allure.severity(allure.severity_level.NORMAL)
 def test_combining_price_filters_narrows_the_result(product_client):
     response = product_client.list_products(min_price="20.00", max_price="50.00")
@@ -96,7 +155,7 @@ def test_combining_price_filters_narrows_the_result(product_client):
 
 
 @allure.title("Include_deleted is ignored for non-manager callers")
-@allure.tag("PROD-007")
+@allure.tag("PROD-010")
 @allure.severity(allure.severity_level.NORMAL)
 def test_include_deleted_is_ignored_for_non_manager(
     public_products, product_client, factory
@@ -117,7 +176,7 @@ def test_include_deleted_is_ignored_for_non_manager(
 
 
 @allure.title("Getting a known product by ID succeeds")
-@allure.tag("PROD-008")
+@allure.tag("PROD-011")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_getting_a_known_product_by_id_succeeds(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -131,7 +190,7 @@ def test_getting_a_known_product_by_id_succeeds(product_client, new_product):
 
 
 @allure.title("Getting an unknown product ID returns 404")
-@allure.tag("PROD-009")
+@allure.tag("PROD-012")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_an_unknown_product_id_returns_404(product_client):
     response = product_client.get_product(uuid.uuid4())
@@ -142,7 +201,7 @@ def test_getting_an_unknown_product_id_returns_404(product_client):
 @allure.title(
     "A soft-deleted product is hidden from the public but visible to managers"
 )
-@allure.tag("PROD-010")
+@allure.tag("PROD-013")
 @allure.severity(allure.severity_level.NORMAL)
 def test_soft_deleted_product_hidden_from_public_visible_to_managers(
     public_products, product_client, new_product
@@ -164,7 +223,7 @@ def test_soft_deleted_product_hidden_from_public_visible_to_managers(
 
 
 @allure.title("Creating a product with valid data succeeds")
-@allure.tag("PROD-011")
+@allure.tag("PROD-014")
 @allure.severity(allure.severity_level.BLOCKER)
 def test_creating_a_product_succeeds(product_client):
     sku = f"TAF-{uuid.uuid4().hex[:12]}"
@@ -180,7 +239,7 @@ def test_creating_a_product_succeeds(product_client):
 
 
 @allure.title("Creating a product without products:manage returns 403")
-@allure.tag("PROD-012")
+@allure.tag("PROD-015")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_creating_a_product_without_permission_returns_403(customer_products):
     response = customer_products.create_product(
@@ -191,7 +250,7 @@ def test_creating_a_product_without_permission_returns_403(customer_products):
 
 
 @allure.title("Creating a product with a duplicate SKU returns 409")
-@allure.tag("PROD-013")
+@allure.tag("PROD-016")
 @allure.severity(allure.severity_level.NORMAL)
 def test_creating_a_product_with_duplicate_sku_returns_409(product_client, new_product):
     existing_sku = new_product["attributes"]["sku"]
@@ -204,7 +263,7 @@ def test_creating_a_product_with_duplicate_sku_returns_409(product_client, new_p
 
 
 @allure.title("A discount_price at or above price is rejected")
-@allure.tag("PROD-014")
+@allure.tag("PROD-017")
 @allure.severity(allure.severity_level.NORMAL)
 def test_discount_price_at_or_above_price_is_rejected(product_client):
     response = product_client.create_product(
@@ -218,7 +277,7 @@ def test_discount_price_at_or_above_price_is_rejected(product_client):
 
 
 @allure.title("An unknown category_id is rejected")
-@allure.tag("PROD-015")
+@allure.tag("PROD-018")
 @allure.severity(allure.severity_level.MINOR)
 def test_creating_with_an_unknown_category_id_is_rejected(product_client):
     response = product_client.create_product(
@@ -237,7 +296,7 @@ def test_creating_with_an_unknown_category_id_is_rejected(product_client):
 
 
 @allure.title("A partial update only changes the fields sent")
-@allure.tag("PROD-016")
+@allure.tag("PROD-019")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_partial_update_only_changes_the_fields_sent(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -257,7 +316,7 @@ def test_partial_update_only_changes_the_fields_sent(product_client, new_product
 
 
 @allure.title("Updating an unknown product ID returns 404")
-@allure.tag("PROD-017")
+@allure.tag("PROD-020")
 @allure.severity(allure.severity_level.NORMAL)
 def test_updating_an_unknown_product_id_returns_404(product_client):
     response = product_client.update_product(uuid.uuid4(), name=fake.unique.company())
@@ -266,7 +325,7 @@ def test_updating_an_unknown_product_id_returns_404(product_client):
 
 
 @allure.title("Replacing category_ids replaces the previous set, not adds to it")
-@allure.tag("PROD-018")
+@allure.tag("PROD-021")
 @allure.severity(allure.severity_level.NORMAL)
 def test_replacing_category_ids_replaces_the_previous_set(
     product_client, factory, new_product
@@ -292,7 +351,7 @@ def test_replacing_category_ids_replaces_the_previous_set(
 
 
 @allure.title("Soft-deleting a product removes it from the default listing and get")
-@allure.tag("PROD-019")
+@allure.tag("PROD-022")
 @allure.severity(allure.severity_level.BLOCKER)
 def test_soft_deleting_removes_from_listing_and_get(
     public_products, product_client, new_product
@@ -308,7 +367,7 @@ def test_soft_deleting_removes_from_listing_and_get(
 
 
 @allure.title("Restoring a soft-deleted product succeeds and stays inactive")
-@allure.tag("PROD-020")
+@allure.tag("PROD-023")
 @allure.severity(allure.severity_level.NORMAL)
 def test_restoring_a_soft_deleted_product_succeeds(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -323,7 +382,7 @@ def test_restoring_a_soft_deleted_product_succeeds(product_client, new_product):
 
 
 @allure.title("Restoring a product that is not deleted returns 404")
-@allure.tag("PROD-021")
+@allure.tag("PROD-024")
 @allure.severity(allure.severity_level.MINOR)
 def test_restoring_a_non_deleted_product_returns_404(product_client, new_product):
     response = product_client.restore_product(new_product["entity_id"])
@@ -337,7 +396,7 @@ def test_restoring_a_non_deleted_product_returns_404(product_client, new_product
 
 
 @allure.title("Best_effort with every id valid succeeds")
-@allure.tag("PROD-022")
+@allure.tag("PROD-025")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_best_effort_with_every_id_valid_succeeds(product_client, factory):
     first = factory("product")["entity_id"]
@@ -354,7 +413,7 @@ def test_best_effort_with_every_id_valid_succeeds(product_client, factory):
 
 
 @allure.title("Best_effort with a mix of valid and invalid ids partially succeeds")
-@allure.tag("PROD-023")
+@allure.tag("PROD-026")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_best_effort_with_mixed_ids_partially_succeeds(product_client, new_product):
     real_id = new_product["entity_id"]
@@ -373,7 +432,7 @@ def test_best_effort_with_mixed_ids_partially_succeeds(product_client, new_produ
 
 
 @allure.title("Atomic with every id valid succeeds")
-@allure.tag("PROD-024")
+@allure.tag("PROD-027")
 @allure.severity(allure.severity_level.NORMAL)
 def test_atomic_with_every_id_valid_succeeds(product_client, factory):
     first = factory("product")["entity_id"]
@@ -390,7 +449,7 @@ def test_atomic_with_every_id_valid_succeeds(product_client, factory):
 
 
 @allure.title("Atomic with any invalid id rolls back everything")
-@allure.tag("PROD-025")
+@allure.tag("PROD-028")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_atomic_with_any_invalid_id_rolls_back_everything(product_client, new_product):
     real_id = new_product["entity_id"]
@@ -406,7 +465,7 @@ def test_atomic_with_any_invalid_id_rolls_back_everything(product_client, new_pr
 
 
 @allure.title("An empty ids list is rejected")
-@allure.tag("PROD-026")
+@allure.tag("PROD-029")
 @allure.severity(allure.severity_level.NORMAL)
 def test_empty_ids_list_is_rejected(product_client):
     response = product_client.bulk_products([], action="deactivate")
@@ -415,7 +474,7 @@ def test_empty_ids_list_is_rejected(product_client):
 
 
 @allure.title("More than the maximum ids is rejected")
-@allure.tag("PROD-027")
+@allure.tag("PROD-030")
 @allure.severity(allure.severity_level.MINOR)
 def test_more_than_the_maximum_ids_is_rejected(product_client):
     ids = [str(uuid.uuid4()) for _ in range(101)]
@@ -429,7 +488,7 @@ def test_more_than_the_maximum_ids_is_rejected(product_client):
 
 
 @allure.title("Duplicate ids are collapsed, not rejected")
-@allure.tag("PROD-028")
+@allure.tag("PROD-031")
 @allure.severity(allure.severity_level.MINOR)
 def test_duplicate_ids_are_collapsed_not_rejected(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -445,7 +504,7 @@ def test_duplicate_ids_are_collapsed_not_rejected(product_client, new_product):
 
 
 @allure.title("Bulk without products:manage returns 403")
-@allure.tag("PROD-029")
+@allure.tag("PROD-032")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_bulk_without_permission_returns_403(customer_products):
     response = customer_products.bulk_products([str(uuid.uuid4())], action="deactivate")
@@ -454,7 +513,7 @@ def test_bulk_without_permission_returns_403(customer_products):
 
 
 @allure.title("Activating a soft-deleted product fails per-item, not the whole batch")
-@allure.tag("PROD-030")
+@allure.tag("PROD-033")
 @allure.severity(allure.severity_level.NORMAL)
 def test_activating_a_soft_deleted_product_fails_per_item(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -471,7 +530,7 @@ def test_activating_a_soft_deleted_product_fails_per_item(product_client, new_pr
 
 
 @allure.title("Bulk requires no If-Match precondition")
-@allure.tag("PROD-031")
+@allure.tag("PROD-034")
 @allure.severity(allure.severity_level.MINOR)
 def test_bulk_requires_no_if_match_precondition(product_client, new_product):
     response = product_client.bulk_products(
@@ -487,7 +546,7 @@ def test_bulk_requires_no_if_match_precondition(product_client, new_product):
 
 
 @allure.title("GET returns an ETag header matching the body's version")
-@allure.tag("PROD-032")
+@allure.tag("PROD-035")
 @allure.severity(allure.severity_level.NORMAL)
 def test_get_returns_etag_header_matching_the_bodys_version(
     product_client, new_product
@@ -499,7 +558,7 @@ def test_get_returns_etag_header_matching_the_bodys_version(
 
 
 @allure.title("Updating without If-Match returns 428")
-@allure.tag("PROD-033")
+@allure.tag("PROD-036")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_updating_without_if_match_returns_428(product_client, new_product):
     response = product_client.update_product(
@@ -511,7 +570,7 @@ def test_updating_without_if_match_returns_428(product_client, new_product):
 
 
 @allure.title("Deleting without If-Match returns 428")
-@allure.tag("PROD-034")
+@allure.tag("PROD-037")
 @allure.severity(allure.severity_level.NORMAL)
 def test_deleting_without_if_match_returns_428(product_client, new_product):
     response = product_client.delete_product(new_product["entity_id"], if_match=None)
@@ -520,7 +579,7 @@ def test_deleting_without_if_match_returns_428(product_client, new_product):
 
 
 @allure.title("Updating with a stale If-Match returns 412")
-@allure.tag("PROD-035")
+@allure.tag("PROD-038")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_updating_with_a_stale_if_match_returns_412(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -539,7 +598,7 @@ def test_updating_with_a_stale_if_match_returns_412(product_client, new_product)
 
 
 @allure.title("Deleting with a stale If-Match returns 412")
-@allure.tag("PROD-036")
+@allure.tag("PROD-039")
 @allure.severity(allure.severity_level.NORMAL)
 def test_deleting_with_a_stale_if_match_returns_412(product_client, new_product):
     product_id = new_product["entity_id"]
@@ -555,7 +614,7 @@ def test_deleting_with_a_stale_if_match_returns_412(product_client, new_product)
 
 
 @allure.title("If-Match: * always succeeds regardless of actual version")
-@allure.tag("PROD-037")
+@allure.tag("PROD-040")
 @allure.severity(allure.severity_level.NORMAL)
 def test_if_match_star_always_succeeds(product_client, new_product):
     response = product_client.update_product(

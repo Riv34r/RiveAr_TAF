@@ -29,13 +29,67 @@ Endpoints in scope:
 `require_permission` dependency as the admin surface: missing/invalid token
 -> 401 (`TOKEN_MISSING`/`TOKEN_INVALID`), authenticated without the
 permission -> 403 `INSUFFICIENT_PERMISSIONS`. Covered once here rather than
-per endpoint - see PROD-012 (and PROD-029 for the bulk endpoint specifically).
+per endpoint - see PROD-015 (and PROD-032 for the bulk endpoint specifically).
+
+---
+
+## Permission boundary
+
+### PROD-001 — Every products:manage-only endpoint requires authentication
+
+**Endpoint:** all five - POST /products, PUT/DELETE /products/{id},
+POST /products/{id}/restore, POST /products/bulk
+**Type:** Negative / Security
+**Priority:** High
+
+**Objective:** `GET /products` and `GET /products/{id}` are deliberately
+excluded - they're public, no token required at all (`PROD-004`..`010`).
+`PROD-015` only proved the mechanism works on `create_product`; a route
+missing its `Depends(require_catalog_manager)` entirely is a real,
+distinct failure mode a black-box test can only catch by calling that
+specific route - parametrized rather than five near-identical tests.
+
+**Expected Result:**
+- Every mutating endpoint, called with no token, returns 401
+  `TOKEN_MISSING`.
+
+---
+
+## Response schema
+
+### PROD-002 — Product response matches the ProductResponse schema
+
+**Endpoint:** PUT /api/v1/products/{product_id}
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Objective:** Full-shape validation via `models.product.ProductResponse`
+(Pydantic) - catches drift in fields no existing scenario asserts on
+individually. Attaches a category first so the nested
+`categories: CategorySummary[]` is actually populated and validated, not
+trivially empty.
+
+**Expected Result:**
+- Response status is 200.
+- `ProductResponse.model_validate(response.json())` raises no
+  `ValidationError`; `categories` is non-empty.
+
+### PROD-003 — Bulk operation response matches the BulkOperationResponse schema
+
+**Endpoint:** POST /api/v1/products/bulk
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Expected Result:**
+- Response status is 200.
+- `BulkOperationResponse.model_validate(response.json())` raises no
+  `ValidationError`.
 
 ---
 
 ## Listing
 
-### PROD-001 — Listing products returns paginated results
+### PROD-004 — Listing products returns paginated results
 
 **Endpoint:** GET /api/v1/products
 **Type:** Positive
@@ -48,7 +102,7 @@ per endpoint - see PROD-012 (and PROD-029 for the bulk endpoint specifically).
 - Response status is 200.
 - Response has `items` and `pagination` (page, page_size, total, total_pages).
 
-### PROD-002 — Default listing includes inactive products
+### PROD-005 — Default listing includes inactive products
 
 **Endpoint:** GET /api/v1/products
 **Type:** Positive / Edge case
@@ -67,7 +121,7 @@ current behaviour rather than asserting it is desirable.
 - Response status is 200.
 - The inactive product's ID appears in the unfiltered `items`.
 
-### PROD-003 — Filtering by status=active returns only active products
+### PROD-006 — Filtering by status=active returns only active products
 
 **Endpoint:** GET /api/v1/products?status=active
 **Type:** Positive / Filtering
@@ -81,7 +135,7 @@ current behaviour rather than asserting it is desirable.
 - Every returned item's `is_active` is `true`; the inactive product's ID is
   absent.
 
-### PROD-004 — An invalid sort_by returns 422 with the allowed values in the message
+### PROD-007 — An invalid sort_by returns 422 with the allowed values in the message
 
 **Endpoint:** GET /api/v1/products?sort_by=...
 **Type:** Validation
@@ -97,7 +151,7 @@ to parse English. Recorded as a deliberate assertion of current behaviour
 - `error.code` is `VALIDATION_ERROR`.
 - `error.message` names at least one real sortable field (e.g. `price`).
 
-### PROD-005 — Searching by name or description returns matching products
+### PROD-008 — Searching by name or description returns matching products
 
 **Endpoint:** GET /api/v1/products?search=...
 **Type:** Positive / Filtering
@@ -111,7 +165,7 @@ to parse English. Recorded as a deliberate assertion of current behaviour
 - The throwaway product's ID appears in `items`; searching for an
   unrelated, never-used term does not return it.
 
-### PROD-006 — Combining category, price, and rating filters narrows the result
+### PROD-009 — Combining category, price, and rating filters narrows the result
 
 **Endpoint:** GET /api/v1/products?category_id=...&min_price=...&max_price=...
 **Type:** Positive / Filtering
@@ -126,7 +180,7 @@ combining `min_price`/`max_price` is enough to prove the mechanism works.
 - Response is non-empty.
 - Every returned item's `price` falls within `min_price`/`max_price`.
 
-### PROD-007 — include_deleted is ignored for non-manager callers
+### PROD-010 — include_deleted is ignored for non-manager callers
 
 **Endpoint:** GET /api/v1/products?include_deleted=true
 **Type:** Negative / Security
@@ -148,7 +202,7 @@ erroring.
 
 ## Get by ID
 
-### PROD-008 — Getting a known product by ID succeeds
+### PROD-011 — Getting a known product by ID succeeds
 
 **Endpoint:** GET /api/v1/products/{product_id}
 **Type:** Positive
@@ -158,7 +212,7 @@ erroring.
 - Response status is 200.
 - `id`, `sku`, `name`, `price` match the requested product.
 
-### PROD-009 — Getting an unknown product ID returns 404
+### PROD-012 — Getting an unknown product ID returns 404
 
 **Endpoint:** GET /api/v1/products/{product_id}
 **Type:** Negative
@@ -168,14 +222,14 @@ erroring.
 - Response status is 404.
 - `error.code` is `PRODUCT_NOT_FOUND`.
 
-### PROD-010 — A soft-deleted product is hidden from the public but visible to managers
+### PROD-013 — A soft-deleted product is hidden from the public but visible to managers
 
 **Endpoint:** GET /api/v1/products/{product_id}
 **Type:** Positive / Negative
 **Priority:** Medium
 
 **Preconditions:**
-- A throwaway product, soft-deleted (see PROD-019 for the delete call
+- A throwaway product, soft-deleted (see PROD-022 for the delete call
   itself).
 
 **Expected Result:**
@@ -186,7 +240,7 @@ erroring.
 
 ## Create
 
-### PROD-011 — Creating a product with valid data succeeds
+### PROD-014 — Creating a product with valid data succeeds
 
 **Endpoint:** POST /api/v1/products
 **Type:** Positive
@@ -201,7 +255,7 @@ listable/gettable rather than erroring on a missing inventory join.
 - Response echoes the submitted fields.
 - `available_stock` is `0`, not `null` or missing.
 
-### PROD-012 — Creating a product without products:manage returns 403
+### PROD-015 — Creating a product without products:manage returns 403
 
 **Endpoint:** POST /api/v1/products
 **Type:** Negative
@@ -211,7 +265,7 @@ listable/gettable rather than erroring on a missing inventory join.
 - Response status is 403.
 - `error.code` is `INSUFFICIENT_PERMISSIONS`.
 
-### PROD-013 — Creating a product with a duplicate SKU returns 409
+### PROD-016 — Creating a product with a duplicate SKU returns 409
 
 **Endpoint:** POST /api/v1/products
 **Type:** Negative
@@ -225,7 +279,7 @@ listable/gettable rather than erroring on a missing inventory join.
 - Response status is 409.
 - `error.code` is `SKU_ALREADY_EXISTS`.
 
-### PROD-014 — A discount_price at or above price is rejected
+### PROD-017 — A discount_price at or above price is rejected
 
 **Endpoint:** POST /api/v1/products
 **Type:** Validation
@@ -235,7 +289,7 @@ listable/gettable rather than erroring on a missing inventory join.
 - Response status is 422.
 - `error.code` is `VALIDATION_ERROR`.
 
-### PROD-015 — An unknown category_id is rejected
+### PROD-018 — An unknown category_id is rejected
 
 **Endpoint:** POST /api/v1/products
 **Type:** Validation
@@ -249,7 +303,7 @@ listable/gettable rather than erroring on a missing inventory join.
 
 ## Update
 
-### PROD-016 — A partial update only changes the fields sent
+### PROD-019 — A partial update only changes the fields sent
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Positive
@@ -266,7 +320,7 @@ independently `None`-gated in the service - sending only `price` must leave
 - Response status is 200.
 - The updated field changed; every other field equals its pre-update value.
 
-### PROD-017 — Updating an unknown product ID returns 404
+### PROD-020 — Updating an unknown product ID returns 404
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Negative
@@ -276,7 +330,7 @@ independently `None`-gated in the service - sending only `price` must leave
 - Response status is 404.
 - `error.code` is `PRODUCT_NOT_FOUND`.
 
-### PROD-018 — Replacing category_ids replaces the previous set, not adds to it
+### PROD-021 — Replacing category_ids replaces the previous set, not adds to it
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Positive / Edge case
@@ -297,7 +351,7 @@ is cleared and rebuilt from `category_ids`, not merged.
 
 ## Delete & Restore
 
-### PROD-019 — Soft-deleting a product removes it from the default listing and get
+### PROD-022 — Soft-deleting a product removes it from the default listing and get
 
 **Endpoint:** DELETE /api/v1/products/{product_id}
 **Type:** Positive / State change
@@ -311,7 +365,7 @@ is cleared and rebuilt from `category_ids`, not merged.
 - A subsequent public `GET /products/{id}` returns 404.
 - The product's ID is absent from an unfiltered `GET /products`.
 
-### PROD-020 — Restoring a soft-deleted product succeeds and stays inactive
+### PROD-023 — Restoring a soft-deleted product succeeds and stays inactive
 
 **Endpoint:** POST /api/v1/products/{product_id}/restore
 **Type:** Positive
@@ -329,13 +383,13 @@ again.
 - `deleted_at` is `null`.
 - `is_active` is unchanged (still `false`, deletion's side effect).
 
-### PROD-021 — Restoring a product that is not deleted returns 404
+### PROD-024 — Restoring a product that is not deleted returns 404
 
 **Endpoint:** POST /api/v1/products/{product_id}/restore
 **Type:** Negative
 **Priority:** Low
 
-**Objective:** Distinct from PROD-009 - the product exists and is not
+**Objective:** Distinct from PROD-012 - the product exists and is not
 deleted, so "not deleted" is folded into the same `PRODUCT_NOT_FOUND` as
 "does not exist" rather than its own code.
 
@@ -352,7 +406,7 @@ best_effort) and its own response shape (`BulkOperationResponse` - `mode`,
 `applied`, `summary`, per-item `results`), distinct from the single-record
 CRUD endpoints above.
 
-### PROD-022 — best_effort with every id valid succeeds
+### PROD-025 — best_effort with every id valid succeeds
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Positive
@@ -367,7 +421,7 @@ CRUD endpoints above.
 - `summary.succeeded` equals the number of ids sent; `summary.failed` is 0.
 - Every product's `is_active`/`deleted_at` reflects the requested action.
 
-### PROD-023 — best_effort with a mix of valid and invalid ids partially succeeds
+### PROD-026 — best_effort with a mix of valid and invalid ids partially succeeds
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Positive / Edge case
@@ -387,7 +441,7 @@ block the good ones.
 - The real product's state actually changed (best_effort really commits
   the successes, not just reports them).
 
-### PROD-024 — atomic with every id valid succeeds
+### PROD-027 — atomic with every id valid succeeds
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Positive
@@ -400,14 +454,14 @@ block the good ones.
 - Response status is 200.
 - `applied` is `true`; every id's state changed.
 
-### PROD-025 — atomic with any invalid id rolls back everything
+### PROD-028 — atomic with any invalid id rolls back everything
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Negative / State change
 **Priority:** High
 
 **Objective:** The defining atomic behaviour - a real product in the same
-batch as a bad id must NOT change, unlike PROD-023.
+batch as a bad id must NOT change, unlike PROD-026.
 
 **Preconditions:**
 - One real throwaway product id, one random (non-existent) UUID;
@@ -421,7 +475,7 @@ batch as a bad id must NOT change, unlike PROD-023.
 - The real product's state is unchanged from before the request (confirm
   via a follow-up GET).
 
-### PROD-026 — an empty ids list is rejected
+### PROD-029 — an empty ids list is rejected
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Validation
@@ -431,7 +485,7 @@ batch as a bad id must NOT change, unlike PROD-023.
 - Response status is 422.
 - `error.code` is `VALIDATION_ERROR`.
 
-### PROD-027 — more than the maximum ids is rejected
+### PROD-030 — more than the maximum ids is rejected
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Validation
@@ -449,7 +503,7 @@ unreachable through the API.
 - `error.details.errors[0].ctx` names `max_length` (100) and the
   `actual_length` sent.
 
-### PROD-028 — duplicate ids are collapsed, not rejected
+### PROD-031 — duplicate ids are collapsed, not rejected
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Positive / Edge case
@@ -466,7 +520,7 @@ applying it twice would double-count in `summary`.
 - Response status is 200.
 - `summary.total` is 1, not 2; `results` has exactly one entry for that id.
 
-### PROD-029 — Bulk without products:manage returns 403
+### PROD-032 — Bulk without products:manage returns 403
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Negative
@@ -476,7 +530,7 @@ applying it twice would double-count in `summary`.
 - Response status is 403.
 - `error.code` is `INSUFFICIENT_PERMISSIONS`.
 
-### PROD-030 — Activating a soft-deleted product fails per-item, not the whole batch
+### PROD-033 — Activating a soft-deleted product fails per-item, not the whole batch
 
 **Endpoint:** POST /api/v1/products/bulk (action=activate, best_effort)
 **Type:** Negative / Business rule
@@ -498,7 +552,7 @@ the same code.
 - `summary.failed` is 1.
 - The item's result has `success: false`, `code` `PRODUCT_DELETED`.
 
-### PROD-031 — Bulk requires no If-Match precondition
+### PROD-034 — Bulk requires no If-Match precondition
 
 **Endpoint:** POST /api/v1/products/bulk
 **Type:** Positive / Edge case
@@ -520,10 +574,10 @@ deliberately not testing the optimistic-concurrency mechanism itself. This
 section does - a cross-cutting mechanism (`app/core/concurrency.py`), not a
 product-specific behaviour, but exercised here through the two callers that
 actually use it (`update_product`, `delete_product`). The permission
-boundary on both is already established above (PROD-012) and not
+boundary on both is already established above (PROD-015) and not
 re-tested per scenario here.
 
-### PROD-032 — GET returns an ETag header matching the body's version
+### PROD-035 — GET returns an ETag header matching the body's version
 
 **Endpoint:** GET /api/v1/products/{product_id}
 **Type:** Positive
@@ -537,14 +591,14 @@ header from the same field.
 - Response status is 200.
 - The `ETag` response header equals `"<version>"` (quoted).
 
-### PROD-033 — Updating without If-Match returns 428
+### PROD-036 — Updating without If-Match returns 428
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Negative
 **Priority:** High
 
 **Objective:** No `If-Match` at all is rejected outright, distinct from a
-stale one (PROD-035) - a client cannot accidentally do a blind overwrite
+stale one (PROD-038) - a client cannot accidentally do a blind overwrite
 simply by forgetting the header.
 
 **Expected Result:**
@@ -552,7 +606,7 @@ simply by forgetting the header.
 - `error.code` is `PRECONDITION_REQUIRED`.
 - `error.details.current_etag` is present.
 
-### PROD-034 — Deleting without If-Match returns 428
+### PROD-037 — Deleting without If-Match returns 428
 
 **Endpoint:** DELETE /api/v1/products/{product_id}
 **Type:** Negative
@@ -562,7 +616,7 @@ simply by forgetting the header.
 - Response status is 428.
 - `error.code` is `PRECONDITION_REQUIRED`.
 
-### PROD-035 — Updating with a stale If-Match returns 412
+### PROD-038 — Updating with a stale If-Match returns 412
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Negative
@@ -582,7 +636,7 @@ caller last read it.
   `details.provided` echoes what was sent.
 - The product's fields are unchanged by this rejected request.
 
-### PROD-036 — Deleting with a stale If-Match returns 412
+### PROD-039 — Deleting with a stale If-Match returns 412
 
 **Endpoint:** DELETE /api/v1/products/{product_id}
 **Type:** Negative
@@ -593,7 +647,7 @@ caller last read it.
 - `error.code` is `PRECONDITION_FAILED`.
 - The product is not deleted.
 
-### PROD-037 — If-Match: * always succeeds regardless of actual version
+### PROD-040 — If-Match: * always succeeds regardless of actual version
 
 **Endpoint:** PUT /api/v1/products/{product_id}
 **Type:** Positive / Edge case
@@ -606,3 +660,4 @@ assumption.
 
 **Expected Result:**
 - Response status is 200.
+

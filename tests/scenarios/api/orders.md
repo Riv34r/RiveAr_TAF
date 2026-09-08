@@ -46,9 +46,81 @@ the same kind of API-unreachable branch as `BULK-006` in `products.md`.
 
 ---
 
+## Permission boundary
+
+### ORD-001 — Orders endpoints require authentication
+
+**Endpoint:** GET /api/v1/orders
+**Type:** Negative / Security
+**Priority:** High
+
+**Objective:** One representative check that the plain "must be logged in"
+*mechanism* (`get_current_user`) behaves correctly; the customer-vs-staff
+distinctions themselves are each covered by their own scenario above
+(ORD-006, ORD-011, ORD-025, ORD-032). Does not prove every route is
+actually wired to it - see ORD-002 for that.
+
+**Expected Result:**
+- Response status is 401.
+- `error.code` is `TOKEN_MISSING`.
+
+### ORD-002 — Every order endpoint requires authentication
+
+**Endpoint:** all seven order endpoints
+**Type:** Negative / Security
+**Priority:** High
+
+**Objective:** Complements ORD-001: a route missing its
+`Depends(get_current_user)` entirely is a real, distinct failure mode a
+black-box test can only catch by calling that specific route -
+parametrized rather than seven near-identical tests.
+
+**Expected Result:**
+- Every endpoint, called with no token, returns 401 `TOKEN_MISSING`.
+
+---
+
+## Response schema
+
+### ORD-003 — Order response matches the OrderResponse schema
+
+**Endpoint:** POST /api/v1/orders/{order_id}/payment/process
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Objective:** Full-shape validation via `models.order.OrderResponse`
+(Pydantic), including its nested `items`/`payment`/`shipping_address` -
+catches drift in fields no existing scenario asserts on individually.
+Attaches a real address and processes payment first so those nested
+objects are actually populated (non-null) rather than trivially absent,
+the way most other scenarios in this file leave them.
+
+**Expected Result:**
+- Response status is 200.
+- `OrderResponse.model_validate(response.json())` raises no
+  `ValidationError`; `items`, `payment`, and `shipping_address` are all
+  non-null/non-empty.
+
+### ORD-004 — Status history response matches the OrderStatusHistoryResponse schema
+
+**Endpoint:** GET /api/v1/orders/{order_id}/status-history
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Preconditions:**
+- An order cancelled with a `note`, so both a `from_status: null` entry
+  (creation) and a `note`-carrying entry exist.
+
+**Expected Result:**
+- Response status is 200.
+- `OrderStatusHistoryResponse.model_validate(...)` raises no
+  `ValidationError` for every returned item.
+
+---
+
 ## Listing
 
-### ORD-001 — Listing orders returns paginated results
+### ORD-005 — Listing orders returns paginated results
 
 **Endpoint:** GET /api/v1/orders
 **Type:** Positive
@@ -58,7 +130,7 @@ the same kind of API-unreachable branch as `BULK-006` in `products.md`.
 - Response status is 200.
 - Response has `items` and `pagination`.
 
-### ORD-002 — A customer's order list is scoped to their own orders
+### ORD-006 — A customer's order list is scoped to their own orders
 
 **Endpoint:** GET /api/v1/orders
 **Type:** Negative / Isolation
@@ -75,7 +147,7 @@ confirming directly rather than trusting the description.
 - The first customer's list contains their own order, not the second
   customer's.
 
-### ORD-003 — Staff can list all orders and filter by customer_id
+### ORD-007 — Staff can list all orders and filter by customer_id
 
 **Endpoint:** GET /api/v1/orders?customer_id=...
 **Type:** Positive
@@ -86,13 +158,13 @@ confirming directly rather than trusting the description.
 - Filtering by a specific customer's ID (as staff) returns only that
   customer's orders.
 
-### ORD-004 — An invalid sort_by returns 422 with the allowed values in the message
+### ORD-008 — An invalid sort_by returns 422 with the allowed values in the message
 
 **Endpoint:** GET /api/v1/orders?sort_by=...
 **Type:** Validation
 **Priority:** Low
 
-**Objective:** Same `resolve_sort` mechanism as `PROD-004`/`INV-004` - same
+**Objective:** Same `resolve_sort` mechanism as `PROD-007`/`INV-008` - same
 known issue, see `BUGS.md` OBS-003.
 
 **Expected Result:**
@@ -104,7 +176,7 @@ known issue, see `BUGS.md` OBS-003.
 
 ## Create order
 
-### ORD-005 — Creating an order with valid items succeeds
+### ORD-009 — Creating an order with valid items succeeds
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Positive
@@ -126,7 +198,7 @@ documented to create.
 - The product's `reserved_stock` increases by the ordered quantity
   (confirmed via `GET /inventory`).
 
-### ORD-006 — Free shipping applies at/above the threshold, a flat cost below it
+### ORD-010 — Free shipping applies at/above the threshold, a flat cost below it
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Positive / Boundary
@@ -140,7 +212,7 @@ $80 order carries `"0.00"`.
 - A sub-$75 order's `shipping_total` is `9.99`.
 - A $75-or-above order's `shipping_total` is `0.00`.
 
-### ORD-007 — Creating an order without a customer profile returns 403
+### ORD-011 — Creating an order without a customer profile returns 403
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative
@@ -153,7 +225,7 @@ as itself.
 - Response status is 403.
 - `error.code` is `INSUFFICIENT_PERMISSIONS`.
 
-### ORD-008 — An empty items list is rejected
+### ORD-012 — An empty items list is rejected
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Validation
@@ -163,7 +235,7 @@ as itself.
 - Response status is 422.
 - `error.code` is `VALIDATION_ERROR`.
 
-### ORD-009 — Ordering a nonexistent product returns 404
+### ORD-013 — Ordering a nonexistent product returns 404
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative
@@ -173,7 +245,7 @@ as itself.
 - Response status is 404.
 - `error.code` is `PRODUCT_NOT_FOUND`.
 
-### ORD-010 — Ordering an inactive product returns 409
+### ORD-014 — Ordering an inactive product returns 409
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative / Business rule
@@ -186,7 +258,7 @@ as itself.
 - Response status is 409.
 - `error.code` is `PRODUCT_INACTIVE`.
 
-### ORD-011 — Ordering more than available stock returns 409 with the shortfall
+### ORD-015 — Ordering more than available stock returns 409 with the shortfall
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative / Business rule
@@ -206,7 +278,7 @@ product's actual stock, to reach `INSUFFICIENT_STOCK` rather than a
 - `error.code` is `INSUFFICIENT_STOCK`.
 - `error.details` carries `product_id`, `available`, and `requested`.
 
-### ORD-012 — An address not belonging to the customer is rejected
+### ORD-016 — An address not belonging to the customer is rejected
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative / Security
@@ -221,7 +293,7 @@ product's actual stock, to reach `INSUFFICIENT_STOCK` rather than a
 - Response status is 422.
 - `error.code` is `VALIDATION_ERROR`.
 
-### ORD-013 — A valid promotion code applies a discount
+### ORD-017 — A valid promotion code applies a discount
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Positive
@@ -238,7 +310,7 @@ cases belong to a future promotions scenario set, not repeated here.
 - Response status is 201.
 - `discount_total` is greater than `0`; `promotion_id` is set.
 
-### ORD-014 — Retrying a create request with the same Idempotency-Key replays the original order
+### ORD-018 — Retrying a create request with the same Idempotency-Key replays the original order
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Positive / Idempotency
@@ -256,7 +328,7 @@ order.
 - The second response carries the `Idempotent-Replay: true` header.
 - Only one order actually exists (confirmed via `GET /orders`).
 
-### ORD-015 — Reusing an Idempotency-Key with a different request body is rejected
+### ORD-019 — Reusing an Idempotency-Key with a different request body is rejected
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative / Idempotency
@@ -267,7 +339,7 @@ order.
 - `error.code` is `IDEMPOTENCY_KEY_REUSED`.
 - `error.details` names the `key` and the `original_endpoint`.
 
-### ORD-016 — Concurrent order creation for the same product loses stock reservations
+### ORD-020 — Concurrent order creation for the same product loses stock reservations
 
 **Endpoint:** POST /api/v1/orders
 **Type:** Negative / Concurrency defect
@@ -299,7 +371,7 @@ what was and wasn't established about the cause.
 
 ## Checkout
 
-### ORD-017 — Checking out a non-empty cart creates an order and clears the cart
+### ORD-021 — Checking out a non-empty cart creates an order and clears the cart
 
 **Endpoint:** POST /api/v1/orders/checkout
 **Type:** Positive
@@ -313,7 +385,7 @@ what was and wasn't established about the cause.
 - Response status is 201; the order's `items` match what was in the cart.
 - A subsequent `GET /cart` shows an empty cart.
 
-### ORD-018 — Checking out an empty cart returns 409
+### ORD-022 — Checking out an empty cart returns 409
 
 **Endpoint:** POST /api/v1/orders/checkout
 **Type:** Negative
@@ -323,7 +395,7 @@ what was and wasn't established about the cause.
 - Response status is 409.
 - `error.code` is `CART_EMPTY`.
 
-### ORD-019 — A failed checkout leaves the cart untouched
+### ORD-023 — A failed checkout leaves the cart untouched
 
 **Endpoint:** POST /api/v1/orders/checkout
 **Type:** Negative / State change
@@ -344,7 +416,7 @@ clear the cart anyway.
 
 ## Get order
 
-### ORD-020 — Getting your own order succeeds
+### ORD-024 — Getting your own order succeeds
 
 **Endpoint:** GET /api/v1/orders/{order_id}
 **Type:** Positive
@@ -353,7 +425,7 @@ clear the cart anyway.
 **Expected Result:**
 - Response status is 200; the response matches the order just created.
 
-### ORD-021 — Getting another customer's order returns 404, not 403
+### ORD-025 — Getting another customer's order returns 404, not 403
 
 **Endpoint:** GET /api/v1/orders/{order_id}
 **Type:** Negative / Security
@@ -367,7 +439,7 @@ use the status code alone to enumerate which order IDs are real.
 - Response status is 404.
 - `error.code` is `ORDER_NOT_FOUND`.
 
-### ORD-022 — Staff can get any order
+### ORD-026 — Staff can get any order
 
 **Endpoint:** GET /api/v1/orders/{order_id}
 **Type:** Positive
@@ -376,7 +448,7 @@ use the status code alone to enumerate which order IDs are real.
 **Expected Result:**
 - Response status is 200 for a staff caller viewing a customer's order.
 
-### ORD-023 — Getting an unknown order ID returns 404
+### ORD-027 — Getting an unknown order ID returns 404
 
 **Endpoint:** GET /api/v1/orders/{order_id}
 **Type:** Negative
@@ -390,7 +462,7 @@ use the status code alone to enumerate which order IDs are real.
 
 ## Order status
 
-### ORD-024 — Staff can walk an order through the full happy-path state machine
+### ORD-028 — Staff can walk an order through the full happy-path state machine
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Positive
@@ -404,19 +476,19 @@ four disconnected transition tests.
 - Each transition returns 200 with `status` reflecting the new value.
 - The final state is `DELIVERED`.
 
-### ORD-025 — An invalid transition is rejected with machine-readable details
+### ORD-029 — An invalid transition is rejected with machine-readable details
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Negative / Business rule
 **Priority:** High
 
-**Objective:** Unlike `PROD-004`/OBS-003's prose-only validation message,
+**Objective:** Unlike `PROD-007`/OBS-003's prose-only validation message,
 this endpoint's error is the good example already referenced there:
 structured `details`, not English the caller has to parse.
 
 **Preconditions:**
 - An order already moved to `DELIVERED` (or any terminal-ish state) via
-  ORD-024, or a fresh `PENDING` order and an out-of-order target like
+  ORD-028, or a fresh `PENDING` order and an out-of-order target like
   `SHIPPED`.
 
 **Expected Result:**
@@ -425,7 +497,7 @@ structured `details`, not English the caller has to parse.
 - `error.details` carries `from`, `to`, and `allowed` (a list, possibly
   empty for a terminal state).
 
-### ORD-026 — A customer can cancel their own PENDING/CONFIRMED order
+### ORD-030 — A customer can cancel their own PENDING/CONFIRMED order
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Positive
@@ -434,7 +506,7 @@ structured `details`, not English the caller has to parse.
 **Expected Result:**
 - Response status is 200; `status` is `CANCELLED`.
 
-### ORD-027 — A customer cannot cancel an order that has progressed past CONFIRMED
+### ORD-031 — A customer cannot cancel an order that has progressed past CONFIRMED
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Negative / Business rule
@@ -448,13 +520,13 @@ structured `details`, not English the caller has to parse.
   cancel, the state just no longer permits it.
 - `error.code` is `INVALID_STATUS_TRANSITION`.
 
-### ORD-028 — A customer attempting any non-cancel transition gets 403
+### ORD-032 — A customer attempting any non-cancel transition gets 403
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Negative / Security
 **Priority:** High
 
-**Objective:** Distinct from ORD-027 - here the target status itself
+**Objective:** Distinct from ORD-031 - here the target status itself
 (anything but `CANCELLED`) is never permitted for a customer, regardless
 of the order's current state.
 
@@ -462,7 +534,7 @@ of the order's current state.
 - Response status is 403.
 - `error.code` is `INSUFFICIENT_PERMISSIONS`.
 
-### ORD-029 — Cancelling releases the reserved stock
+### ORD-033 — Cancelling releases the reserved stock
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Positive / Side effect
@@ -472,7 +544,7 @@ of the order's current state.
 - After cancelling, the product's `reserved_stock` (via `GET /inventory`)
   decreases by the order's quantity, back to its pre-order value.
 
-### ORD-030 — Shipping converts the reservation into a sale without changing available_stock
+### ORD-034 — Shipping converts the reservation into a sale without changing available_stock
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Positive / Side effect
@@ -490,7 +562,7 @@ stock was already accounted for as reserved. Verified live: before
   order's quantity; `available_stock` is unchanged from just before
   shipping.
 
-### ORD-031 — Cancelling a paid order refunds the payment
+### ORD-035 — Cancelling a paid order refunds the payment
 
 **Endpoint:** PATCH /api/v1/orders/{order_id}/status
 **Type:** Positive / Side effect
@@ -507,14 +579,14 @@ stock was already accounted for as reserved. Verified live: before
 
 ## Status history
 
-### ORD-032 — Status history lists entries chronologically, including the initial PENDING entry
+### ORD-036 — Status history lists entries chronologically, including the initial PENDING entry
 
 **Endpoint:** GET /api/v1/orders/{order_id}/status-history
 **Type:** Positive
 **Priority:** Medium
 
 **Objective:** Oldest-first (`created_at`, `id` as a tiebreaker) - the
-opposite order from `INV-015`'s inventory transactions, which are
+opposite order from `INV-019`'s inventory transactions, which are
 newest-first. Every order's very first entry has `from_status: null`.
 
 **Preconditions:**
@@ -525,7 +597,7 @@ newest-first. Every order's very first entry has `from_status: null`.
 - The first entry has `from_status: null`, `to_status: "PENDING"`.
 - Later entries appear in the order they actually happened, oldest first.
 
-### ORD-033 — Status history for an unknown order ID returns 404
+### ORD-037 — Status history for an unknown order ID returns 404
 
 **Endpoint:** GET /api/v1/orders/{order_id}/status-history
 **Type:** Negative
@@ -539,7 +611,7 @@ newest-first. Every order's very first entry has `from_status: null`.
 
 ## Payment processing
 
-### ORD-034 — outcome=success marks the payment PAID
+### ORD-038 — outcome=success marks the payment PAID
 
 **Endpoint:** POST /api/v1/orders/{order_id}/payment/process
 **Type:** Positive
@@ -550,7 +622,7 @@ newest-first. Every order's very first entry has `from_status: null`.
 - `payment.status` is `PAID`; `payment.paid_at` and
   `payment.transaction_reference` are both set (previously `null`).
 
-### ORD-035 — outcome=failure marks the payment FAILED and can be retried afterward
+### ORD-039 — outcome=failure marks the payment FAILED and can be retried afterward
 
 **Endpoint:** POST /api/v1/orders/{order_id}/payment/process
 **Type:** Positive / Negative
@@ -565,7 +637,7 @@ retried to success.
 - A second call with `outcome=success` on the same order: `payment.status`
   becomes `PAID`.
 
-### ORD-036 — Processing an already-processed payment returns 409
+### ORD-040 — Processing an already-processed payment returns 409
 
 **Endpoint:** POST /api/v1/orders/{order_id}/payment/process
 **Type:** Negative
@@ -578,21 +650,3 @@ retried to success.
 - Response status is 409.
 - `error.code` is `PAYMENT_ALREADY_PROCESSED`.
 
----
-
-## Permission boundary
-
-### ORD-037 — Orders endpoints require authentication
-
-**Endpoint:** GET /api/v1/orders
-**Type:** Negative / Security
-**Priority:** High
-
-**Objective:** One representative check for the plain "must be logged in"
-boundary shared by every endpoint in this domain; the customer-vs-staff
-distinctions themselves are each covered by their own scenario above
-(ORD-002, ORD-007, ORD-021, ORD-028), not repeated here.
-
-**Expected Result:**
-- Response status is 401.
-- `error.code` is `TOKEN_MISSING`.
