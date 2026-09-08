@@ -18,9 +18,32 @@ Endpoints in scope:
 
 ---
 
+## Response schema
+
+### AUTH-001 — GET /auth/me response matches the UserResponse schema
+
+**Endpoint:** GET /api/v1/auth/me
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Objective:** Full-shape validation via `models.auth.UserResponse`
+(Pydantic) - catches drift (a field renamed, dropped, or retyped) in
+fields no existing scenario asserts on individually. This is the same
+`UserResponse` shape every admin user endpoint returns (see
+`admin.md`'s equivalent), so validating it once here covers the shape
+itself; `AUTH-020` already covers the specific-field/business-logic
+assertions (email, roles) for this endpoint.
+
+**Expected Result:**
+- Response status is 200.
+- `UserResponse.model_validate(response.json())` raises no
+  `ValidationError`.
+
+---
+
 ## Register
 
-### AUTH-001 — Registering with valid details creates a customer
+### AUTH-002 — Registering with valid details creates a customer
 
 **Endpoint:** POST /api/v1/auth/register
 **Type:** Positive
@@ -37,7 +60,7 @@ immediately usable — no separate login step required.
 - Response contains `access_token`, `refresh_token`, `token_type: "bearer"`, `expires_in > 0`.
 - The returned access token authenticates on `GET /auth/me`, reporting `roles: ["CUSTOMER"]` and `is_active: true`.
 
-### AUTH-002 — Registering with an already-registered email is rejected
+### AUTH-003 — Registering with an already-registered email is rejected
 
 **Endpoint:** POST /api/v1/auth/register
 **Type:** Negative
@@ -52,7 +75,7 @@ immediately usable — no separate login step required.
 - Response status is 409.
 - `error.code` is `EMAIL_ALREADY_REGISTERED`.
 
-### AUTH-003 — Registering with a malformed email is rejected
+### AUTH-004 — Registering with a malformed email is rejected
 
 **Endpoint:** POST /api/v1/auth/register
 **Type:** Validation
@@ -65,7 +88,7 @@ immediately usable — no separate login step required.
 - `error.code` is `VALIDATION_ERROR`.
 - No account is created (a later register with the corrected email succeeds).
 
-### AUTH-004 — Password strength rules are enforced
+### AUTH-005 — Password strength rules are enforced
 
 **Endpoint:** POST /api/v1/auth/register
 **Type:** Validation / Boundary
@@ -83,7 +106,7 @@ be at least 8 characters.
 - Response status is 422 for every case.
 - `error.code` is `VALIDATION_ERROR`.
 
-### AUTH-005 — A missing required field is rejected
+### AUTH-006 — A missing required field is rejected
 
 **Endpoint:** POST /api/v1/auth/register
 **Type:** Validation
@@ -101,7 +124,7 @@ be at least 8 characters.
 
 ## Login
 
-### AUTH-006 — Logging in with valid credentials returns a token pair
+### AUTH-007 — Logging in with valid credentials returns a token pair
 
 **Endpoint:** POST /api/v1/auth/login
 **Type:** Positive
@@ -117,7 +140,7 @@ be at least 8 characters.
 - Response contains a usable `access_token` and `refresh_token`.
 - `last_login_at` on the account is updated (verifiable via `GET /auth/me` after login, or DB).
 
-### AUTH-007 — Logging in with a wrong password is rejected
+### AUTH-008 — Logging in with a wrong password is rejected
 
 **Endpoint:** POST /api/v1/auth/login
 **Type:** Negative
@@ -127,7 +150,7 @@ be at least 8 characters.
 - Response status is 401.
 - `error.code` is `INVALID_CREDENTIALS`.
 
-### AUTH-008 — An unknown email is indistinguishable from a wrong password
+### AUTH-009 — An unknown email is indistinguishable from a wrong password
 
 **Endpoint:** POST /api/v1/auth/login
 **Type:** Negative / Security
@@ -141,7 +164,7 @@ password."
 - Both cases return the same status (401) and the same `error.code`
   (`INVALID_CREDENTIALS`).
 
-### AUTH-009 — Logging in to a disabled account is rejected
+### AUTH-010 — Logging in to a disabled account is rejected
 
 **Endpoint:** POST /api/v1/auth/login
 **Type:** Negative
@@ -158,7 +181,7 @@ password."
 - Response status is 401.
 - `error.code` is `USER_DISABLED`.
 
-### AUTH-010 — A malformed login request is rejected
+### AUTH-011 — A malformed login request is rejected
 
 **Endpoint:** POST /api/v1/auth/login
 **Type:** Validation
@@ -174,7 +197,7 @@ password."
 
 ## Refresh
 
-### AUTH-011 — A valid refresh token rotates into a new token pair
+### AUTH-012 — A valid refresh token rotates into a new token pair
 
 **Endpoint:** POST /api/v1/auth/refresh
 **Type:** Positive
@@ -190,7 +213,7 @@ password."
 - The returned `refresh_token` differs from the one submitted.
 - The new access token authenticates successfully.
 
-### AUTH-012 — A refresh token cannot be reused after rotation
+### AUTH-013 — A refresh token cannot be reused after rotation
 
 **Endpoint:** POST /api/v1/auth/refresh
 **Type:** Negative / Security
@@ -200,13 +223,13 @@ password."
 next refreshes.
 
 **Preconditions:**
-- A refresh token that has already been used once (per AUTH-011).
+- A refresh token that has already been used once (per AUTH-012).
 
 **Expected Result:**
 - Response status is 401.
 - `error.code` is `TOKEN_REVOKED`.
 
-### AUTH-013 — An expired refresh token is rejected
+### AUTH-014 — An expired refresh token is rejected
 
 **Endpoint:** POST /api/v1/auth/refresh
 **Type:** Negative
@@ -229,7 +252,7 @@ accept this scenario as DB-layer-only / manual for now.
 - Response status is 401.
 - `error.code` is `TOKEN_EXPIRED`.
 
-### AUTH-014 — A malformed refresh token is rejected
+### AUTH-015 — A malformed refresh token is rejected
 
 **Endpoint:** POST /api/v1/auth/refresh
 **Type:** Negative
@@ -239,7 +262,7 @@ accept this scenario as DB-layer-only / manual for now.
 - Response status is 401.
 - `error.code` is `TOKEN_INVALID`.
 
-### AUTH-015 — Refreshing as a since-disabled user is rejected
+### AUTH-016 — Refreshing as a since-disabled user is rejected
 
 **Endpoint:** POST /api/v1/auth/refresh
 **Type:** Negative
@@ -247,7 +270,7 @@ accept this scenario as DB-layer-only / manual for now.
 
 **Preconditions:**
 - Order matters: log in first to obtain the refresh token, *then* disable
-  the account (same factory + admin-PATCH approach as AUTH-009). Disabling
+  the account (same factory + admin-PATCH approach as AUTH-010). Disabling
   before login would fail at the login step instead of testing this path.
 
 **Expected Result:**
@@ -258,7 +281,7 @@ accept this scenario as DB-layer-only / manual for now.
 
 ## Logout
 
-### AUTH-016 — Logging out revokes the refresh token
+### AUTH-017 — Logging out revokes the refresh token
 
 **Endpoint:** POST /api/v1/auth/logout
 **Type:** Positive
@@ -268,7 +291,7 @@ accept this scenario as DB-layer-only / manual for now.
 - Response status is 204.
 - The same refresh token subsequently fails on `POST /auth/refresh` with `TOKEN_REVOKED`.
 
-### AUTH-017 — Logout is idempotent for an already-unusable token
+### AUTH-018 — Logout is idempotent for an already-unusable token
 
 **Endpoint:** POST /api/v1/auth/logout
 **Type:** Positive / Edge case
@@ -282,7 +305,7 @@ not error — the caller's intent ("I am logged out") is already satisfied.
 **Expected Result:**
 - Response status is 204 in both cases (never 401 for these two).
 
-### AUTH-018 — A malformed refresh token on logout is rejected
+### AUTH-019 — A malformed refresh token on logout is rejected
 
 **Endpoint:** POST /api/v1/auth/logout
 **Type:** Negative
@@ -299,7 +322,7 @@ is a client error, not a no-op.
 
 ## Get current user
 
-### AUTH-019 — A valid access token returns the caller's identity
+### AUTH-020 — A valid access token returns the caller's identity
 
 **Endpoint:** GET /api/v1/auth/me
 **Type:** Positive
@@ -309,7 +332,7 @@ is a client error, not a no-op.
 - Response status is 200.
 - `id`, `email`, `full_name`, `roles`, `permissions`, `is_active` match the authenticated account.
 
-### AUTH-020 — No token is rejected
+### AUTH-021 — No token is rejected
 
 **Endpoint:** GET /api/v1/auth/me
 **Type:** Negative
@@ -319,7 +342,7 @@ is a client error, not a no-op.
 - Response status is 401.
 - `error.code` is `TOKEN_MISSING`.
 
-### AUTH-021 — A malformed access token is rejected
+### AUTH-022 — A malformed access token is rejected
 
 **Endpoint:** GET /api/v1/auth/me
 **Type:** Negative
@@ -329,7 +352,7 @@ is a client error, not a no-op.
 - Response status is 401.
 - `error.code` is `TOKEN_INVALID`.
 
-### AUTH-022 — An expired access token is rejected
+### AUTH-023 — An expired access token is rejected
 
 **Endpoint:** GET /api/v1/auth/me
 **Type:** Negative
@@ -342,7 +365,7 @@ is a client error, not a no-op.
 - Response status is 401.
 - `error.code` is `TOKEN_EXPIRED`.
 
-### AUTH-023 — A token for a since-disabled user is rejected
+### AUTH-024 — A token for a since-disabled user is rejected
 
 **Endpoint:** GET /api/v1/auth/me
 **Type:** Negative
@@ -354,7 +377,7 @@ moment the account is disabled, without waiting for the token to expire.
 
 **Preconditions:**
 - Obtain a valid access token first (login), *then* disable the account
-  (factory + admin-PATCH, as in AUTH-009). Reuse the same token afterward.
+  (factory + admin-PATCH, as in AUTH-010). Reuse the same token afterward.
 
 **Expected Result:**
 - Response status is 401.
@@ -364,7 +387,7 @@ moment the account is disabled, without waiting for the token to expire.
 
 ## Update profile
 
-### AUTH-024 — A valid full_name update succeeds
+### AUTH-025 — A valid full_name update succeeds
 
 **Endpoint:** PATCH /api/v1/auth/me
 **Type:** Positive
@@ -375,7 +398,7 @@ moment the account is disabled, without waiting for the token to expire.
 - `full_name` in the response reflects the new value.
 - A subsequent `GET /auth/me` reflects the same change.
 
-### AUTH-025 — Updating the profile without authentication is rejected
+### AUTH-026 — Updating the profile without authentication is rejected
 
 **Endpoint:** PATCH /api/v1/auth/me
 **Type:** Negative
@@ -384,7 +407,7 @@ moment the account is disabled, without waiting for the token to expire.
 **Expected Result:**
 - Response status is 401 (`TOKEN_MISSING` with no header, `TOKEN_INVALID` with a malformed one).
 
-### AUTH-026 — An invalid full_name is rejected
+### AUTH-027 — An invalid full_name is rejected
 
 **Endpoint:** PATCH /api/v1/auth/me
 **Type:** Validation / Boundary
@@ -400,7 +423,7 @@ moment the account is disabled, without waiting for the token to expire.
 
 ## Change password
 
-### AUTH-027 — Changing the password with the correct current password succeeds
+### AUTH-028 — Changing the password with the correct current password succeeds
 
 **Endpoint:** POST /api/v1/auth/change-password
 **Type:** Positive
@@ -411,7 +434,7 @@ moment the account is disabled, without waiting for the token to expire.
 - A subsequent login with the *old* password fails (`INVALID_CREDENTIALS`).
 - A login with the *new* password succeeds.
 
-### AUTH-028 — Changing the password with the wrong current password is rejected
+### AUTH-029 — Changing the password with the wrong current password is rejected
 
 **Endpoint:** POST /api/v1/auth/change-password
 **Type:** Negative
@@ -422,7 +445,7 @@ moment the account is disabled, without waiting for the token to expire.
 - `error.code` is `INVALID_CREDENTIALS`.
 - The account's password is unchanged (old password still logs in).
 
-### AUTH-029 — A weak new password is rejected
+### AUTH-030 — A weak new password is rejected
 
 **Endpoint:** POST /api/v1/auth/change-password
 **Type:** Validation
@@ -436,7 +459,7 @@ chars) applies to `new_password`.
 - `error.code` is `VALIDATION_ERROR`.
 - The account's password is unchanged.
 
-### AUTH-030 — Changing the password without authentication is rejected
+### AUTH-031 — Changing the password without authentication is rejected
 
 **Endpoint:** POST /api/v1/auth/change-password
 **Type:** Negative
@@ -444,3 +467,4 @@ chars) applies to `new_password`.
 
 **Expected Result:**
 - Response status is 401 (`TOKEN_MISSING` or `TOKEN_INVALID` depending on what was sent).
+

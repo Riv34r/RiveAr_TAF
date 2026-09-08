@@ -1,6 +1,6 @@
 """Test cases for /orders/*.
 
-Implements ORD-001 through ORD-037 from tests/scenarios/api/orders.md.
+Implements ORD-001 through ORD-040 from tests/scenarios/api/orders.md.
 """
 
 import uuid
@@ -11,9 +11,95 @@ import pytest
 
 from core.address_client import AddressClient
 from core.order_client import OrderClient
+from models.order import OrderResponse, OrderStatusHistoryResponse
 from utils.helpers import assert_error, assert_paginated_response, assert_status_code
 
 pytestmark = allure.feature("Orders")
+
+
+# ---------------------------------------------------------------------------
+# Permission boundary
+# ---------------------------------------------------------------------------
+
+
+@allure.title("Orders endpoints require authentication")
+@allure.tag("ORD-001")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_orders_endpoints_require_authentication(api):
+    response = OrderClient(api).list_orders()
+
+    assert_error(response, 401, "TOKEN_MISSING")
+
+
+ORDER_ENDPOINTS = [
+    ("list_orders", lambda c: c.list_orders()),
+    ("create_order", lambda c: c.create_order(items=[])),
+    ("checkout", lambda c: c.checkout()),
+    ("get_order", lambda c: c.get_order(uuid.uuid4())),
+    ("update_status", lambda c: c.update_status(uuid.uuid4(), status="CANCELLED")),
+    ("list_status_history", lambda c: c.list_status_history(uuid.uuid4())),
+    ("process_payment", lambda c: c.process_payment(uuid.uuid4())),
+]
+
+
+@allure.title("Every order endpoint requires authentication - {name}")
+@allure.tag("ORD-002")
+@allure.severity(allure.severity_level.NORMAL)
+@pytest.mark.parametrize(
+    "name,call", ORDER_ENDPOINTS, ids=[e[0] for e in ORDER_ENDPOINTS]
+)
+def test_order_endpoints_require_authentication(api, name, call):
+    response = call(OrderClient(api))
+
+    assert_error(response, 401, "TOKEN_MISSING")
+
+
+# ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
+
+
+@allure.title("Order response matches the OrderResponse schema")
+@allure.tag("ORD-003")
+@allure.severity(allure.severity_level.NORMAL)
+def test_order_response_matches_schema(customer_orders, new_product):
+    address = AddressClient(customer_orders.api).create_address(
+        recipient_name="Test",
+        line1="1 Test St",
+        city="Testville",
+        postal_code="00000",
+        country="US",
+    )
+    created = customer_orders.create_order(
+        items=[{"product_id": new_product["entity_id"], "quantity": 1}],
+        shipping_address_id=address.json()["id"],
+    )
+    assert_status_code(created, 201)
+    order_id = created.json()["id"]
+
+    response = customer_orders.process_payment(order_id, outcome="success")
+
+    assert_status_code(response, 200)
+    body = OrderResponse.model_validate(response.json())
+    assert body.items
+    assert body.payment is not None
+    assert body.shipping_address is not None
+
+
+@allure.title("Status history response matches the OrderStatusHistoryResponse schema")
+@allure.tag("ORD-004")
+@allure.severity(allure.severity_level.NORMAL)
+def test_status_history_response_matches_schema(customer_orders, new_order):
+    order_id = new_order["id"]
+    customer_orders.update_status(order_id, status="CANCELLED", note="Changed my mind")
+
+    response = customer_orders.list_status_history(order_id)
+
+    assert_status_code(response, 200)
+    items = response.json()
+    assert items
+    for item in items:
+        OrderStatusHistoryResponse.model_validate(item)
 
 
 # ---------------------------------------------------------------------------
@@ -22,7 +108,7 @@ pytestmark = allure.feature("Orders")
 
 
 @allure.title("Listing orders returns paginated results")
-@allure.tag("ORD-001")
+@allure.tag("ORD-005")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_orders_returns_paginated_results(customer_orders):
     response = customer_orders.list_orders()
@@ -31,7 +117,7 @@ def test_listing_orders_returns_paginated_results(customer_orders):
 
 
 @allure.title("A customer's order list is scoped to their own orders")
-@allure.tag("ORD-002")
+@allure.tag("ORD-006")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_customer_order_list_is_scoped_to_their_own(
     customer_orders, new_customer_orders, new_order, factory
@@ -51,7 +137,7 @@ def test_customer_order_list_is_scoped_to_their_own(
 
 
 @allure.title("Staff can list all orders and filter by customer_id")
-@allure.tag("ORD-003")
+@allure.tag("ORD-007")
 @allure.severity(allure.severity_level.NORMAL)
 def test_staff_can_filter_orders_by_customer_id(order_client, new_order):
     order_id = new_order["id"]
@@ -63,7 +149,7 @@ def test_staff_can_filter_orders_by_customer_id(order_client, new_order):
 
 
 @allure.title("An invalid sort_by returns 422 with the allowed values in the message")
-@allure.tag("ORD-004")
+@allure.tag("ORD-008")
 @allure.severity(allure.severity_level.MINOR)
 def test_invalid_sort_by_returns_422(customer_orders):
     response = customer_orders.list_orders(sort_by="not_a_real_column")
@@ -79,7 +165,7 @@ def test_invalid_sort_by_returns_422(customer_orders):
 
 
 @allure.title("Creating an order with valid items succeeds")
-@allure.tag("ORD-005")
+@allure.tag("ORD-009")
 @allure.severity(allure.severity_level.BLOCKER)
 def test_creating_an_order_with_valid_items_succeeds(
     customer_orders, factory, inventory_for
@@ -110,7 +196,7 @@ def test_creating_an_order_with_valid_items_succeeds(
 
 
 @allure.title("Free shipping applies at/above the threshold, a flat cost below it")
-@allure.tag("ORD-006")
+@allure.tag("ORD-010")
 @allure.severity(allure.severity_level.NORMAL)
 def test_free_shipping_applies_at_the_threshold(customer_orders, factory):
     low = factory("product", price="20.00")
@@ -127,7 +213,7 @@ def test_free_shipping_applies_at_the_threshold(customer_orders, factory):
 
 
 @allure.title("Creating an order without a customer profile returns 403")
-@allure.tag("ORD-007")
+@allure.tag("ORD-011")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_creating_an_order_without_a_customer_profile_returns_403(
     order_client, factory
@@ -142,7 +228,7 @@ def test_creating_an_order_without_a_customer_profile_returns_403(
 
 
 @allure.title("An empty items list is rejected")
-@allure.tag("ORD-008")
+@allure.tag("ORD-012")
 @allure.severity(allure.severity_level.MINOR)
 def test_empty_items_list_is_rejected(customer_orders):
     response = customer_orders.create_order(items=[])
@@ -151,7 +237,7 @@ def test_empty_items_list_is_rejected(customer_orders):
 
 
 @allure.title("Ordering a nonexistent product returns 404")
-@allure.tag("ORD-009")
+@allure.tag("ORD-013")
 @allure.severity(allure.severity_level.NORMAL)
 def test_ordering_a_nonexistent_product_returns_404(customer_orders):
     response = customer_orders.create_order(
@@ -162,7 +248,7 @@ def test_ordering_a_nonexistent_product_returns_404(customer_orders):
 
 
 @allure.title("Ordering an inactive product returns 409")
-@allure.tag("ORD-010")
+@allure.tag("ORD-014")
 @allure.severity(allure.severity_level.NORMAL)
 def test_ordering_an_inactive_product_returns_409(customer_orders, factory):
     product = factory("product", is_active=False)
@@ -175,7 +261,7 @@ def test_ordering_an_inactive_product_returns_409(customer_orders, factory):
 
 
 @allure.title("Ordering more than available stock returns 409 with the shortfall")
-@allure.tag("ORD-011")
+@allure.tag("ORD-015")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_ordering_more_than_available_stock_returns_409(customer_orders, factory):
     product = factory("product", stock=5)
@@ -190,7 +276,7 @@ def test_ordering_more_than_available_stock_returns_409(customer_orders, factory
 
 
 @allure.title("An address not belonging to the customer is rejected")
-@allure.tag("ORD-012")
+@allure.tag("ORD-016")
 @allure.severity(allure.severity_level.NORMAL)
 def test_address_not_belonging_to_customer_is_rejected(
     customer_orders, new_customer_orders, factory
@@ -215,7 +301,7 @@ def test_address_not_belonging_to_customer_is_rejected(
 
 
 @allure.title("A valid promotion code applies a discount")
-@allure.tag("ORD-013")
+@allure.tag("ORD-017")
 @allure.severity(allure.severity_level.NORMAL)
 def test_valid_promotion_code_applies_a_discount(
     customer_orders, factory, seed_manifest
@@ -240,7 +326,7 @@ def test_valid_promotion_code_applies_a_discount(
 @allure.title(
     "Retrying a create request with the same Idempotency-Key replays the original order"
 )
-@allure.tag("ORD-014")
+@allure.tag("ORD-018")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_retrying_with_the_same_idempotency_key_replays_the_original_order(
     customer_orders, new_product, idempotency_key
@@ -262,7 +348,7 @@ def test_retrying_with_the_same_idempotency_key_replays_the_original_order(
 
 
 @allure.title("Reusing an Idempotency-Key with a different request body is rejected")
-@allure.tag("ORD-015")
+@allure.tag("ORD-019")
 @allure.severity(allure.severity_level.NORMAL)
 def test_reusing_idempotency_key_with_a_different_body_is_rejected(
     customer_orders, new_product, idempotency_key
@@ -288,7 +374,7 @@ def test_reusing_idempotency_key_with_a_different_body_is_rejected(
     strict=True,
 )
 @allure.title("Concurrent order creation for the same product loses stock reservations")
-@allure.tag("ORD-016")
+@allure.tag("ORD-020")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_concurrent_order_creation_loses_stock_reservations(
     customer_orders, new_product, inventory_for
@@ -317,7 +403,7 @@ def test_concurrent_order_creation_loses_stock_reservations(
 
 
 @allure.title("Checking out a non-empty cart creates an order and clears the cart")
-@allure.tag("ORD-017")
+@allure.tag("ORD-021")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_checking_out_a_non_empty_cart_creates_an_order_and_clears_it(
     customer_orders, customer_cart, factory
@@ -335,7 +421,7 @@ def test_checking_out_a_non_empty_cart_creates_an_order_and_clears_it(
 
 
 @allure.title("Checking out an empty cart returns 409")
-@allure.tag("ORD-018")
+@allure.tag("ORD-022")
 @allure.severity(allure.severity_level.NORMAL)
 def test_checking_out_an_empty_cart_returns_409(customer_orders):
     response = customer_orders.checkout()
@@ -344,7 +430,7 @@ def test_checking_out_an_empty_cart_returns_409(customer_orders):
 
 
 @allure.title("A failed checkout leaves the cart untouched")
-@allure.tag("ORD-019")
+@allure.tag("ORD-023")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_a_failed_checkout_leaves_the_cart_untouched(
     customer_orders, customer_cart, factory, inventory_for, inventory_client
@@ -367,7 +453,7 @@ def test_a_failed_checkout_leaves_the_cart_untouched(
 
 
 @allure.title("Getting your own order succeeds")
-@allure.tag("ORD-020")
+@allure.tag("ORD-024")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_getting_your_own_order_succeeds(customer_orders, new_order):
     order_id = new_order["id"]
@@ -379,7 +465,7 @@ def test_getting_your_own_order_succeeds(customer_orders, new_order):
 
 
 @allure.title("Getting another customer's order returns 404, not 403")
-@allure.tag("ORD-021")
+@allure.tag("ORD-025")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_getting_another_customers_order_returns_404(new_order, new_customer_orders):
     _, other_orders = new_customer_orders()
@@ -389,7 +475,7 @@ def test_getting_another_customers_order_returns_404(new_order, new_customer_ord
 
 
 @allure.title("Staff can get any order")
-@allure.tag("ORD-022")
+@allure.tag("ORD-026")
 @allure.severity(allure.severity_level.NORMAL)
 def test_staff_can_get_any_order(order_client, new_order):
     order_id = new_order["id"]
@@ -401,7 +487,7 @@ def test_staff_can_get_any_order(order_client, new_order):
 
 
 @allure.title("Getting an unknown order ID returns 404")
-@allure.tag("ORD-023")
+@allure.tag("ORD-027")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_an_unknown_order_id_returns_404(customer_orders):
     response = customer_orders.get_order(uuid.uuid4())
@@ -415,7 +501,7 @@ def test_getting_an_unknown_order_id_returns_404(customer_orders):
 
 
 @allure.title("Staff can walk an order through the full happy-path state machine")
-@allure.tag("ORD-024")
+@allure.tag("ORD-028")
 @allure.severity(allure.severity_level.BLOCKER)
 def test_staff_can_walk_an_order_through_the_full_happy_path(order_client, new_order):
     order_id = new_order["id"]
@@ -427,7 +513,7 @@ def test_staff_can_walk_an_order_through_the_full_happy_path(order_client, new_o
 
 
 @allure.title("An invalid transition is rejected with machine-readable details")
-@allure.tag("ORD-025")
+@allure.tag("ORD-029")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_invalid_transition_is_rejected_with_machine_readable_details(
     order_client, new_order
@@ -441,7 +527,7 @@ def test_invalid_transition_is_rejected_with_machine_readable_details(
 
 
 @allure.title("A customer can cancel their own PENDING order")
-@allure.tag("ORD-026")
+@allure.tag("ORD-030")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_customer_can_cancel_their_own_pending_order(customer_orders, new_order):
     response = customer_orders.update_status(new_order["id"], status="CANCELLED")
@@ -451,7 +537,7 @@ def test_customer_can_cancel_their_own_pending_order(customer_orders, new_order)
 
 
 @allure.title("A customer cannot cancel an order that has progressed past CONFIRMED")
-@allure.tag("ORD-027")
+@allure.tag("ORD-031")
 @allure.severity(allure.severity_level.NORMAL)
 def test_customer_cannot_cancel_an_order_past_confirmed(
     order_client, customer_orders, new_order
@@ -466,7 +552,7 @@ def test_customer_cannot_cancel_an_order_past_confirmed(
 
 
 @allure.title("A customer attempting any non-cancel transition gets 403")
-@allure.tag("ORD-028")
+@allure.tag("ORD-032")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_customer_attempting_a_non_cancel_transition_gets_403(
     customer_orders, new_order
@@ -477,7 +563,7 @@ def test_customer_attempting_a_non_cancel_transition_gets_403(
 
 
 @allure.title("Cancelling releases the reserved stock")
-@allure.tag("ORD-029")
+@allure.tag("ORD-033")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_cancelling_releases_the_reserved_stock(
     customer_orders, factory, inventory_for
@@ -501,7 +587,7 @@ def test_cancelling_releases_the_reserved_stock(
 @allure.title(
     "Shipping converts the reservation into a sale without changing available_stock"
 )
-@allure.tag("ORD-030")
+@allure.tag("ORD-034")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_shipping_converts_the_reservation_into_a_sale(
     order_client, customer_orders, factory, inventory_for
@@ -524,7 +610,7 @@ def test_shipping_converts_the_reservation_into_a_sale(
 
 
 @allure.title("Cancelling a paid order refunds the payment")
-@allure.tag("ORD-031")
+@allure.tag("ORD-035")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_cancelling_a_paid_order_refunds_the_payment(customer_orders, new_order):
     order_id = new_order["id"]
@@ -544,7 +630,7 @@ def test_cancelling_a_paid_order_refunds_the_payment(customer_orders, new_order)
 @allure.title(
     "Status history lists entries chronologically, including the initial PENDING entry"
 )
-@allure.tag("ORD-032")
+@allure.tag("ORD-036")
 @allure.severity(allure.severity_level.NORMAL)
 def test_status_history_lists_entries_chronologically(customer_orders, new_order):
     order_id = new_order["id"]
@@ -562,7 +648,7 @@ def test_status_history_lists_entries_chronologically(customer_orders, new_order
 
 
 @allure.title("Status history for an unknown order ID returns 404")
-@allure.tag("ORD-033")
+@allure.tag("ORD-037")
 @allure.severity(allure.severity_level.MINOR)
 def test_status_history_for_an_unknown_order_id_returns_404(customer_orders):
     response = customer_orders.list_status_history(uuid.uuid4())
@@ -576,7 +662,7 @@ def test_status_history_for_an_unknown_order_id_returns_404(customer_orders):
 
 
 @allure.title("outcome=success marks the payment PAID")
-@allure.tag("ORD-034")
+@allure.tag("ORD-038")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_payment_outcome_success_marks_it_paid(customer_orders, new_order):
     response = customer_orders.process_payment(new_order["id"], outcome="success")
@@ -589,7 +675,7 @@ def test_payment_outcome_success_marks_it_paid(customer_orders, new_order):
 
 
 @allure.title("outcome=failure marks the payment FAILED and can be retried afterward")
-@allure.tag("ORD-035")
+@allure.tag("ORD-039")
 @allure.severity(allure.severity_level.NORMAL)
 def test_payment_outcome_failure_can_be_retried(customer_orders, new_order):
     order_id = new_order["id"]
@@ -604,7 +690,7 @@ def test_payment_outcome_failure_can_be_retried(customer_orders, new_order):
 
 
 @allure.title("Processing an already-processed payment returns 409")
-@allure.tag("ORD-036")
+@allure.tag("ORD-040")
 @allure.severity(allure.severity_level.NORMAL)
 def test_processing_an_already_processed_payment_returns_409(
     customer_orders, new_order
@@ -615,17 +701,3 @@ def test_processing_an_already_processed_payment_returns_409(
     response = customer_orders.process_payment(order_id, outcome="success")
 
     assert_error(response, 409, "PAYMENT_ALREADY_PROCESSED")
-
-
-# ---------------------------------------------------------------------------
-# Permission boundary
-# ---------------------------------------------------------------------------
-
-
-@allure.title("Orders endpoints require authentication")
-@allure.tag("ORD-037")
-@allure.severity(allure.severity_level.CRITICAL)
-def test_orders_endpoints_require_authentication(api):
-    response = OrderClient(api).list_orders()
-
-    assert_error(response, 401, "TOKEN_MISSING")

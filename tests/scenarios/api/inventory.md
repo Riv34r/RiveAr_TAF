@@ -18,7 +18,7 @@ different paths create that product, with two different stock defaults:
   when no override is given, `reorder_threshold=DEFAULT_REORDER_THRESHOLD`
   (also 15). Tests in this suite use the factory, so an unadorned
   `factory("product")`/`new_inventory` starts at `stock=100`, `IN_STOCK` -
-  not `stock=0` - unless a scenario explicitly overrides it (e.g. INV-012).
+  not `stock=0` - unless a scenario explicitly overrides it (e.g. INV-016).
 
 `InventoryTransactionType` has six values (`PURCHASE`, `RESERVATION`,
 `RELEASE`, `SALE`, `ADJUSTMENT`, `RETURN`), but only `ADJUSTMENT` is
@@ -35,13 +35,82 @@ Endpoints in scope:
 
 Unlike products, **every** endpoint here - including the `GET`s - requires
 `inventory:manage` (`require_permission` on all four routes; there is no
-public read path). Covered once, see INV-018.
+public read path). Covered once, see INV-001.
+
+---
+
+## Permission boundary
+
+### INV-001 — Inventory endpoints require inventory:manage
+
+**Endpoint:** GET /api/v1/inventory
+**Type:** Negative / Security
+**Priority:** High
+
+**Objective:** All four endpoints share the exact same
+`require_permission("inventory:manage")` dependency (`require_inventory_manager`
+in `inventory.py`) - one representative check (the plain `GET`, cheapest to
+set up) is enough to prove the *mechanism* (both the 401 and 403 branches)
+behaves correctly. It does not prove every route is actually wired to
+it - see INV-002 for that.
+
+**Expected Result:**
+- No/invalid token -> 401 (`TOKEN_MISSING`/`TOKEN_INVALID`).
+- Authenticated without `inventory:manage` (e.g. a plain customer) -> 403
+  `INSUFFICIENT_PERMISSIONS`.
+
+### INV-002 — Every inventory endpoint requires authentication
+
+**Endpoint:** all four - GET /inventory, GET /inventory/{id},
+PATCH /inventory/{id}, GET /inventory/{id}/transactions
+**Type:** Negative / Security
+**Priority:** High
+
+**Objective:** Complements INV-001: a route missing its
+`Depends(require_inventory_manager)` entirely is a real, distinct failure
+mode a black-box test can only catch by calling that specific route -
+parametrized rather than four near-identical tests.
+
+**Expected Result:**
+- Every endpoint, called with no token, returns 401 `TOKEN_MISSING`.
+
+---
+
+## Response schema
+
+### INV-003 — Inventory response matches the InventoryResponse schema
+
+**Endpoint:** GET /api/v1/inventory
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Objective:** Full-shape validation via `models.inventory.InventoryResponse`
+(Pydantic) - catches drift in fields no existing scenario asserts on
+individually.
+
+**Expected Result:**
+- `InventoryResponse.model_validate(...)` raises no `ValidationError`.
+
+### INV-004 — Inventory transaction response matches the InventoryTransactionResponse schema
+
+**Endpoint:** GET /api/v1/inventory/{inventory_id}/transactions
+**Type:** Positive / Contract
+**Priority:** Medium
+
+**Preconditions:**
+- An adjustment made with a `reason`, so `note` is populated (non-null)
+  rather than trivially absent.
+
+**Expected Result:**
+- Response status is 200.
+- `InventoryTransactionResponse.model_validate(...)` raises no
+  `ValidationError` for every returned item.
 
 ---
 
 ## Listing
 
-### INV-001 — Listing inventory returns paginated results
+### INV-005 — Listing inventory returns paginated results
 
 **Endpoint:** GET /api/v1/inventory
 **Type:** Positive
@@ -51,7 +120,7 @@ public read path). Covered once, see INV-018.
 - Response status is 200.
 - Response has `items` and `pagination` (page, page_size, total, total_pages).
 
-### INV-002 — Filtering by status returns only matching records
+### INV-006 — Filtering by status returns only matching records
 
 **Endpoint:** GET /api/v1/inventory?status=...
 **Type:** Positive / Filtering
@@ -60,7 +129,7 @@ public read path). Covered once, see INV-018.
 **Objective:** Proves the filter mechanism itself, not any particular
 status value - a fresh throwaway record's own (whatever it turns out to be)
 status is enough; the boundary computation that decides *which* status a
-given stock ends up with is INV-012's concern, not this one.
+given stock ends up with is INV-016's concern, not this one.
 
 **Preconditions:**
 - A throwaway product via the factory.
@@ -73,7 +142,7 @@ given stock ends up with is INV-012's concern, not this one.
   negative case, without it `search` alone narrowing to one record would
   make the filter's actual effect unverifiable either way.
 
-### INV-003 — Searching by product name or SKU returns the matching record
+### INV-007 — Searching by product name or SKU returns the matching record
 
 **Endpoint:** GET /api/v1/inventory?search=...
 **Type:** Positive / Filtering
@@ -90,13 +159,13 @@ not any field on `Inventory` itself.
 - Searching by the product's `name` returns its inventory record;
   searching by its `sku` also returns it.
 
-### INV-004 — An invalid sort_by returns 422 with the allowed values in the message
+### INV-008 — An invalid sort_by returns 422 with the allowed values in the message
 
 **Endpoint:** GET /api/v1/inventory?sort_by=...
 **Type:** Validation
 **Priority:** Low
 
-**Objective:** Same `resolve_sort` mechanism as PROD-004 - allowed columns
+**Objective:** Same `resolve_sort` mechanism as PROD-007 - allowed columns
 land in `error.message` prose, not `error.details`. Same known issue,
 see `BUGS.md` OBS-003.
 
@@ -112,7 +181,7 @@ see `BUGS.md` OBS-003.
 
 ## Get by ID
 
-### INV-005 — Getting a known inventory record by ID succeeds
+### INV-009 — Getting a known inventory record by ID succeeds
 
 **Endpoint:** GET /api/v1/inventory/{inventory_id}
 **Type:** Positive
@@ -124,7 +193,7 @@ see `BUGS.md` OBS-003.
   endpoints build their response through the same `to_response()`, so this
   is a stronger check than any hand-picked subset of fields.
 
-### INV-006 — Getting an unknown inventory ID returns 404
+### INV-010 — Getting an unknown inventory ID returns 404
 
 **Endpoint:** GET /api/v1/inventory/{inventory_id}
 **Type:** Negative
@@ -138,7 +207,7 @@ see `BUGS.md` OBS-003.
 
 ## Adjust stock
 
-### INV-007 — A positive stock_delta increases stock
+### INV-011 — A positive stock_delta increases stock
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Positive
@@ -153,7 +222,7 @@ see `BUGS.md` OBS-003.
 - `stock` equals the original value plus `stock_delta`.
 - `available_stock` (`stock - reserved_stock`) reflects the new stock.
 
-### INV-008 — A negative stock_delta decreases stock
+### INV-012 — A negative stock_delta decreases stock
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Positive
@@ -166,7 +235,7 @@ see `BUGS.md` OBS-003.
 - Response status is 200.
 - `stock` equals the original value plus `stock_delta` (negative).
 
-### INV-009 — An adjustment that would take stock negative is rejected
+### INV-013 — An adjustment that would take stock negative is rejected
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Negative / Business rule
@@ -186,7 +255,7 @@ writing anything.
 - A follow-up GET shows `stock` unchanged - the rejected request wrote
   nothing (no transaction, no stock change).
 
-### INV-010 — An adjustment that would leave stock below reserved_stock is rejected
+### INV-014 — An adjustment that would leave stock below reserved_stock is rejected
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Negative / Business rule
@@ -199,10 +268,10 @@ inventory record starts with `reserved_stock=0`, and nothing in the current
 API surface raises it above 0. `reserved_stock` only moves through the
 Orders flow (`order_service.py`, `RESERVATION`/`RELEASE`/`SALE`
 transactions), which is out of scope until the orders domain is covered.
-Until then this branch is indistinguishable from INV-009 through this API -
+Until then this branch is indistinguishable from INV-013 through this API -
 revisit once orders exists.
 
-### INV-011 — Adjusting stock records a transaction with the given reason
+### INV-015 — Adjusting stock records a transaction with the given reason
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Positive / Side effect
@@ -210,7 +279,7 @@ revisit once orders exists.
 
 **Objective:** Every successful adjustment writes an `InventoryTransaction`
 (`type=ADJUSTMENT`) alongside the stock change, visible through
-GET .../transactions (INV-015).
+GET .../transactions (INV-019).
 
 **Preconditions:**
 - A throwaway product via the factory.
@@ -221,7 +290,7 @@ GET .../transactions (INV-015).
   `quantity_change` equal to the `stock_delta` sent, `stock_after` equal to
   the resulting `stock`, and `note` equal to the `reason` sent.
 
-### INV-012 — Stock crossing the reorder threshold recomputes status through all three states
+### INV-016 — Stock crossing the reorder threshold recomputes status through all three states
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Positive / Boundary / State transition
@@ -229,7 +298,7 @@ GET .../transactions (INV-015).
 
 **Objective:** `status_for()`: `available <= 0` -> `OUT_OF_STOCK`,
 `available <= reorder_threshold` -> `LOW_STOCK`, else `IN_STOCK`.
-`reserved_stock` is always 0 here (see INV-010), so `available == stock`.
+`reserved_stock` is always 0 here (see INV-014), so `available == stock`.
 The factory-created threshold is 15 (`DEFAULT_REORDER_THRESHOLD`).
 
 **Preconditions:**
@@ -242,7 +311,7 @@ The factory-created threshold is 15 (`DEFAULT_REORDER_THRESHOLD`).
 - A further adjustment to `stock=16` (`stock_delta=1`) returns
   `status=IN_STOCK`.
 
-### INV-013 — Adjusting an unknown inventory ID returns 404
+### INV-017 — Adjusting an unknown inventory ID returns 404
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Negative
@@ -252,7 +321,7 @@ The factory-created threshold is 15 (`DEFAULT_REORDER_THRESHOLD`).
 - Response status is 404.
 - `error.code` is `INVENTORY_NOT_FOUND`.
 
-### INV-014 — Concurrent stock adjustments can lose writes
+### INV-018 — Concurrent stock adjustments can lose writes
 
 **Endpoint:** PATCH /api/v1/inventory/{inventory_id}
 **Type:** Negative / Concurrency defect
@@ -278,7 +347,7 @@ only the `stock` column itself loses writes.
 **Expected Result (correct behaviour, currently failing against the SUT):**
 - After N concurrent requests each with `stock_delta=1`, the final `stock`
   equals the original value plus N, and the transaction history
-  (INV-015) contains exactly N entries.
+  (INV-019) contains exactly N entries.
 - **Actual (current SUT behaviour):** all N requests return 200 and all N
   transactions are recorded, but the final `stock` is less than
   original + N - some concurrent writes are lost.
@@ -287,7 +356,7 @@ only the `stock` column itself loses writes.
 
 ## Transaction history
 
-### INV-015 — Transaction history lists entries in reverse-chronological order
+### INV-019 — Transaction history lists entries in reverse-chronological order
 
 **Endpoint:** GET /api/v1/inventory/{inventory_id}/transactions
 **Type:** Positive
@@ -302,7 +371,7 @@ only the `stock` column itself loses writes.
 - Response has `items` and `pagination`.
 - The two adjustments both appear, most recent first (`created_at` desc).
 
-### INV-016 — Transaction history for an unknown inventory ID returns 404
+### INV-020 — Transaction history for an unknown inventory ID returns 404
 
 **Endpoint:** GET /api/v1/inventory/{inventory_id}/transactions
 **Type:** Negative
@@ -312,7 +381,7 @@ only the `stock` column itself loses writes.
 - Response status is 404.
 - `error.code` is `INVENTORY_NOT_FOUND`.
 
-### INV-017 — Transaction history is scoped to its own inventory record
+### INV-021 — Transaction history is scoped to its own inventory record
 
 **Endpoint:** GET /api/v1/inventory/{inventory_id}/transactions
 **Type:** Negative / Isolation
@@ -331,22 +400,3 @@ assuming the filter is there.
 - The first record's transaction history contains its own adjustment only,
   not the second record's.
 
----
-
-## Permission boundary
-
-### INV-018 — Inventory endpoints require inventory:manage
-
-**Endpoint:** GET /api/v1/inventory
-**Type:** Negative / Security
-**Priority:** High
-
-**Objective:** All four endpoints share the exact same
-`require_permission("inventory:manage")` dependency (`require_inventory_manager`
-in `inventory.py`) - one representative check (the plain `GET`, cheapest to
-set up) is enough to prove the boundary; not re-covered per endpoint.
-
-**Expected Result:**
-- No/invalid token -> 401 (`TOKEN_MISSING`/`TOKEN_INVALID`).
-- Authenticated without `inventory:manage` (e.g. a plain customer) -> 403
-  `INSUFFICIENT_PERMISSIONS`.

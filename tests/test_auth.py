@@ -1,7 +1,7 @@
 """Test cases for the /auth/* endpoints: register, login, refresh, logout,
 profile, and password change.
 
-Implements AUTH-001 through AUTH-030 from tests/scenarios/api/auth.md.
+Implements AUTH-001 through AUTH-031 from tests/scenarios/api/auth.md.
 """
 
 import time
@@ -10,7 +10,7 @@ import allure
 import pytest
 from faker import Faker
 
-from models.auth import TokenResponse
+from models.auth import TokenResponse, UserResponse
 from utils.helpers import assert_error, assert_status_code, assert_valid_token_pair
 
 pytestmark = allure.feature("Auth")
@@ -36,12 +36,29 @@ def disabled_customer(admin_client, factory):
 
 
 # ---------------------------------------------------------------------------
+# Response schema
+# ---------------------------------------------------------------------------
+
+
+@allure.title("GET /auth/me response matches the UserResponse schema")
+@allure.tag("AUTH-001")
+@allure.severity(allure.severity_level.NORMAL)
+def test_current_user_response_matches_schema(auth_client, customer, seed_manifest):
+    token_pair = auth_client.login(customer["email"], seed_manifest["password"]).json()
+
+    response = auth_client.get_current_user(token_pair["access_token"])
+
+    assert_status_code(response, 200)
+    UserResponse.model_validate(response.json())
+
+
+# ---------------------------------------------------------------------------
 # Register
 # ---------------------------------------------------------------------------
 
 
 @allure.title("Registering with valid details creates a customer and returns tokens")
-@allure.tag("AUTH-001")
+@allure.tag("AUTH-002")
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_register_creates_customer_and_returns_tokens(auth_client):
@@ -60,7 +77,7 @@ def test_register_creates_customer_and_returns_tokens(auth_client):
 
 
 @allure.title("Registering with an already-registered email returns 409")
-@allure.tag("AUTH-002")
+@allure.tag("AUTH-003")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_register_with_duplicate_email_returns_409(auth_client, customer):
     response = auth_client.register(customer["email"], "StrongPass1", "Duplicate")
@@ -69,7 +86,7 @@ def test_register_with_duplicate_email_returns_409(auth_client, customer):
 
 
 @allure.title("Registering with a malformed email returns 422")
-@allure.tag("AUTH-003")
+@allure.tag("AUTH-004")
 @allure.severity(allure.severity_level.NORMAL)
 def test_register_with_malformed_email_returns_422(auth_client):
     response = auth_client.register("not-an-email", "StrongPass1", "X")
@@ -78,7 +95,7 @@ def test_register_with_malformed_email_returns_422(auth_client):
 
 
 @allure.title("Registering with a password that fails strength rules returns 422")
-@allure.tag("AUTH-004")
+@allure.tag("AUTH-005")
 @allure.severity(allure.severity_level.NORMAL)
 @pytest.mark.parametrize(
     "password",
@@ -94,7 +111,7 @@ def test_register_with_invalid_password_returns_422(auth_client, password):
 
 
 @allure.title("Registering with a missing required field returns 422")
-@allure.tag("AUTH-005")
+@allure.tag("AUTH-006")
 @allure.severity(allure.severity_level.NORMAL)
 @pytest.mark.parametrize("missing_field", ["email", "password", "full_name"])
 def test_register_missing_required_field_returns_422(auth_client, missing_field):
@@ -116,7 +133,7 @@ def test_register_missing_required_field_returns_422(auth_client, missing_field)
 
 
 @allure.title("Logging in with valid credentials returns a token pair")
-@allure.tag("AUTH-006")
+@allure.tag("AUTH-007")
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_login_with_valid_credentials_returns_a_token_pair(
@@ -138,7 +155,7 @@ def test_login_with_valid_credentials_returns_a_token_pair(
 
 
 @allure.title("Logging in with a wrong password returns 401")
-@allure.tag("AUTH-007")
+@allure.tag("AUTH-008")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_login_with_wrong_password_returns_401(auth_client, customer):
     response = auth_client.login(customer["email"], "WrongPassword123!")
@@ -147,7 +164,7 @@ def test_login_with_wrong_password_returns_401(auth_client, customer):
 
 
 @allure.title("An unknown email is indistinguishable from a wrong password")
-@allure.tag("AUTH-008")
+@allure.tag("AUTH-009")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_unknown_email_is_indistinguishable_from_wrong_password(
     auth_client, customer, seed_manifest
@@ -162,7 +179,7 @@ def test_unknown_email_is_indistinguishable_from_wrong_password(
 
 
 @allure.title("Logging in to a disabled account returns 401")
-@allure.tag("AUTH-009")
+@allure.tag("AUTH-010")
 @allure.severity(allure.severity_level.NORMAL)
 def test_login_to_a_disabled_account_returns_401(admin_client, factory, auth_client):
     new_customer = disabled_customer(admin_client, factory)
@@ -175,7 +192,7 @@ def test_login_to_a_disabled_account_returns_401(admin_client, factory, auth_cli
 
 
 @allure.title("A malformed login request returns 422")
-@allure.tag("AUTH-010")
+@allure.tag("AUTH-011")
 @allure.severity(allure.severity_level.MINOR)
 @pytest.mark.parametrize(
     "payload",
@@ -194,7 +211,7 @@ def test_malformed_login_request_returns_422(api, payload):
 
 
 @allure.title("A valid refresh token rotates into a new token pair")
-@allure.tag("AUTH-011")
+@allure.tag("AUTH-012")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_refresh_rotates_into_a_new_token_pair(auth_client, customer, seed_manifest):
     token_pair = auth_client.login(customer["email"], seed_manifest["password"]).json()
@@ -208,7 +225,7 @@ def test_refresh_rotates_into_a_new_token_pair(auth_client, customer, seed_manif
 
 
 @allure.title("A refresh token cannot be reused after rotation")
-@allure.tag("AUTH-012")
+@allure.tag("AUTH-013")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_refresh_token_cannot_be_reused_after_rotation(
     auth_client, customer, seed_manifest
@@ -224,17 +241,17 @@ def test_refresh_token_cannot_be_reused_after_rotation(
 
 @pytest.mark.skip(
     reason="No API-only way to produce an expired refresh token - see the "
-    "Blocker note on AUTH-013 in tests/scenarios/api/auth.md"
+    "Blocker note on AUTH-014 in tests/scenarios/api/auth.md"
 )
 @allure.title("An expired refresh token returns 401")
-@allure.tag("AUTH-013")
+@allure.tag("AUTH-014")
 @allure.severity(allure.severity_level.NORMAL)
 def test_expired_refresh_token_returns_401():
     pass
 
 
 @allure.title("A malformed refresh token returns 401")
-@allure.tag("AUTH-014")
+@allure.tag("AUTH-015")
 @allure.severity(allure.severity_level.NORMAL)
 def test_malformed_refresh_token_returns_401(auth_client):
     response = auth_client.refresh("not.a.token")
@@ -243,7 +260,7 @@ def test_malformed_refresh_token_returns_401(auth_client):
 
 
 @allure.title("Refreshing as a since-disabled user returns 401")
-@allure.tag("AUTH-015")
+@allure.tag("AUTH-016")
 @allure.severity(allure.severity_level.MINOR)
 def test_refresh_as_a_since_disabled_user_returns_401(
     admin_client, auth_client, logged_in_customer
@@ -262,7 +279,7 @@ def test_refresh_as_a_since_disabled_user_returns_401(
 
 
 @allure.title("Logging out revokes the refresh token")
-@allure.tag("AUTH-016")
+@allure.tag("AUTH-017")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_logout_revokes_the_refresh_token(auth_client, customer, seed_manifest):
     token_pair = auth_client.login(customer["email"], seed_manifest["password"]).json()
@@ -275,7 +292,7 @@ def test_logout_revokes_the_refresh_token(auth_client, customer, seed_manifest):
 
 
 @allure.title("Logging out an already-revoked token is idempotent")
-@allure.tag("AUTH-017")
+@allure.tag("AUTH-018")
 @allure.severity(allure.severity_level.NORMAL)
 def test_logout_is_idempotent_for_an_already_revoked_token(
     auth_client, customer, seed_manifest
@@ -289,18 +306,18 @@ def test_logout_is_idempotent_for_an_already_revoked_token(
 
 
 @pytest.mark.skip(
-    reason="Same blocker as AUTH-013 - no API-only way to produce an expired "
+    reason="Same blocker as AUTH-014 - no API-only way to produce an expired "
     "refresh token to prove logout is idempotent for it too."
 )
 @allure.title("Logging out an already-expired token is idempotent")
-@allure.tag("AUTH-017")
+@allure.tag("AUTH-018")
 @allure.severity(allure.severity_level.NORMAL)
 def test_logout_is_idempotent_for_an_expired_token():
     pass
 
 
 @allure.title("A malformed refresh token on logout returns 401")
-@allure.tag("AUTH-018")
+@allure.tag("AUTH-019")
 @allure.severity(allure.severity_level.MINOR)
 def test_malformed_refresh_token_on_logout_returns_401(auth_client):
     response = auth_client.logout("not.a.token")
@@ -314,7 +331,7 @@ def test_malformed_refresh_token_on_logout_returns_401(auth_client):
 
 
 @allure.title("A valid access token returns the caller's identity")
-@allure.tag("AUTH-019")
+@allure.tag("AUTH-020")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_valid_access_token_returns_identity(auth_client, customer, seed_manifest):
     token_pair = auth_client.login(customer["email"], seed_manifest["password"]).json()
@@ -328,7 +345,7 @@ def test_valid_access_token_returns_identity(auth_client, customer, seed_manifes
 
 
 @allure.title("No token returns 401")
-@allure.tag("AUTH-020")
+@allure.tag("AUTH-021")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_no_token_returns_401(api):
     response = api.get("/auth/me")
@@ -337,7 +354,7 @@ def test_no_token_returns_401(api):
 
 
 @allure.title("A malformed access token returns 401")
-@allure.tag("AUTH-021")
+@allure.tag("AUTH-022")
 @allure.severity(allure.severity_level.NORMAL)
 def test_malformed_access_token_returns_401(auth_client):
     response = auth_client.get_current_user("not.a.token")
@@ -346,7 +363,7 @@ def test_malformed_access_token_returns_401(auth_client):
 
 
 @allure.title("An expired access token returns 401")
-@allure.tag("AUTH-022")
+@allure.tag("AUTH-023")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_expired_access_token_returns_401(api, auth_client, customer):
     minted = api.post(
@@ -360,7 +377,7 @@ def test_expired_access_token_returns_401(api, auth_client, customer):
 
 
 @allure.title("A token for a since-disabled user returns 401")
-@allure.tag("AUTH-023")
+@allure.tag("AUTH-024")
 @allure.severity(allure.severity_level.MINOR)
 def test_token_for_a_since_disabled_user_returns_401(
     admin_client, auth_client, logged_in_customer
@@ -379,7 +396,7 @@ def test_token_for_a_since_disabled_user_returns_401(
 
 
 @allure.title("A valid full_name update succeeds")
-@allure.tag("AUTH-024")
+@allure.tag("AUTH-025")
 @allure.severity(allure.severity_level.NORMAL)
 def test_valid_full_name_update_succeeds(auth_client, logged_in_customer):
     _, token_pair = logged_in_customer
@@ -392,7 +409,7 @@ def test_valid_full_name_update_succeeds(auth_client, logged_in_customer):
 
 
 @allure.title("Updating the profile without authentication returns 401")
-@allure.tag("AUTH-025")
+@allure.tag("AUTH-026")
 @allure.severity(allure.severity_level.NORMAL)
 def test_update_profile_without_authentication_returns_401(api):
     response = api.patch("/auth/me", json={"full_name": "X"})
@@ -401,7 +418,7 @@ def test_update_profile_without_authentication_returns_401(api):
 
 
 @allure.title("An invalid full_name returns 422")
-@allure.tag("AUTH-026")
+@allure.tag("AUTH-027")
 @allure.severity(allure.severity_level.MINOR)
 @pytest.mark.parametrize("full_name", ["", "x" * 256], ids=["empty", "over-max-length"])
 def test_invalid_full_name_returns_422(auth_client, logged_in_customer, full_name):
@@ -418,7 +435,7 @@ def test_invalid_full_name_returns_422(auth_client, logged_in_customer, full_nam
 
 
 @allure.title("Changing the password with the correct current password succeeds")
-@allure.tag("AUTH-027")
+@allure.tag("AUTH-028")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_change_password_with_correct_current_password_succeeds(
     auth_client, logged_in_customer
@@ -438,7 +455,7 @@ def test_change_password_with_correct_current_password_succeeds(
 
 
 @allure.title("Changing the password with the wrong current password returns 401")
-@allure.tag("AUTH-028")
+@allure.tag("AUTH-029")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_change_password_with_wrong_current_password_returns_401(
     auth_client, logged_in_customer
@@ -457,7 +474,7 @@ def test_change_password_with_wrong_current_password_returns_401(
 
 
 @allure.title("A weak new password returns 422")
-@allure.tag("AUTH-029")
+@allure.tag("AUTH-030")
 @allure.severity(allure.severity_level.NORMAL)
 def test_weak_new_password_returns_422(auth_client, logged_in_customer):
     new_customer, token_pair = logged_in_customer
@@ -474,7 +491,7 @@ def test_weak_new_password_returns_422(auth_client, logged_in_customer):
 
 
 @allure.title("Changing the password without authentication returns 401")
-@allure.tag("AUTH-030")
+@allure.tag("AUTH-031")
 @allure.severity(allure.severity_level.NORMAL)
 def test_change_password_without_authentication_returns_401(api):
     response = api.post(
