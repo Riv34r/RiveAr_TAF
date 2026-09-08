@@ -210,6 +210,9 @@ def test_adjusting_an_unknown_inventory_id_returns_404(inventory_client):
     assert_error(response, 404, "INVENTORY_NOT_FOUND")
 
 
+# strict=True is deliberate: a real fix should surface as a hard failure
+# (unremoved marker), not a silent XFAIL. Trade-off: a lucky interleaving
+# could occasionally XPASS - accepted given how reliably this reproduced.
 @pytest.mark.xfail(
     reason="BUG-003: adjust_stock has no row lock - see BUGS.md", strict=True
 )
