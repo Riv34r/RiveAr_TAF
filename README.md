@@ -13,11 +13,20 @@ else is built incrementally on top of this - see [Roadmap](#roadmap).
 
 ## Structure
 
-- `core/`  - `ApiClient` (the one place that knows how to reach the API) and
-  domain clients built on top of it (`AuthClient`, ...)
-- `models/` - Pydantic models for API objects (empty until a test needs one)
+The framework is organized by layer. Only the API layer exists today; UI and
+DB get their own `core/<layer>/`, `<layer>/`, and `tests/<layer>/` the same
+way once those start (see [Roadmap](#roadmap)) - no empty scaffolding for
+layers that don't have code yet.
+
+- `core/` - framework-wide building blocks, one subpackage per layer:
+  - `core/api/` - `ApiClient`, the one place that knows how to reach the API
+- `api/` - everything specific to testing the HTTP API:
+  - `api/clients/` - domain clients built on `core.api.api_client.ApiClient`
+    (`AuthClient`, `AdminClient`, ...)
+  - `api/models/` - Pydantic response contract models, one module per domain
 - `utils/` - shared assertion helpers (`assert_status_code`, `assert_error`, ...)
-- `tests/` - test suites and `conftest.py`
+- `tests/` - test suites, split the same way:
+  - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
 
 ## Setup
 
@@ -58,8 +67,8 @@ allure serve reports/allure_results
 Test cases carry stable IDs via `@allure.tag(...)` (`HLT-*`, `AUTH-*`, ...).
 Docstrings are reserved for genuinely important context, not the ID itself.
 
-- `tests/test_health.py` - HLT-01/02
-- `tests/test_auth.py` - AUTH-001..031 (register, login, refresh, logout, profile, password)
+- `tests/api/test_health.py` - HLT-01/02
+- `tests/api/test_auth.py` - AUTH-001..031 (register, login, refresh, logout, profile, password)
 
 ## Defects found
 

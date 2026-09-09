@@ -24,7 +24,7 @@ dependencies = [
 # package - everything test-run/output/data related is excluded on purpose.
 packages = [
     { include = "core" },
-    { include = "models" },
+    { include = "api" },
     { include = "utils" },
 ]
 exclude = [

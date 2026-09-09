@@ -1,6 +1,6 @@
 """Shared helper functions."""
 
-from models.auth import TokenResponse
+from api.models.auth import TokenResponse
 
 
 def seeded_account(manifest: dict, role: str) -> dict:

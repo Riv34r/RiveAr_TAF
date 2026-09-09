@@ -1,6 +1,6 @@
 """
 Tests package.
 
-Contains all test cases for the automation framework. Currently covering the
-Health and Authentication endpoints.
+Test suites split by layer - today just tests/api. tests/ui and
+tests/db will be added alongside the ui/ and db/ layers once those exist.
 """

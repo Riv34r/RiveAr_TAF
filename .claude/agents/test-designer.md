@@ -22,7 +22,7 @@ Prioritize meaningful behavioural coverage over test count.
 6. Perform a coverage review of the designed scenarios.
 7. Identify missing, duplicated or low-value scenarios.
 8. Refine the scenarios based on the coverage review.
-9. Save the final scenarios under `tests/scenarios/api/`.
+9. Save the final scenarios under `tests/api/scenarios/`.
 
 # Scenario Design
 
@@ -122,7 +122,7 @@ Example:
 
 Organize scenarios by API domain:
 
-tests/scenarios/api/
+tests/api/scenarios/
 ├── auth.md
 ├── products.md
 ├── orders.md
