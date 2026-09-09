@@ -31,7 +31,18 @@ on:
 jobs:
   api-tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
+      - name: Enforce the tests/api scope
+        run: |
+          case "${{ inputs.pytest_args }}" in
+            tests/api*) ;;
+            *)
+              echo "::error::pytest_args must start with 'tests/api' (got: '${{ inputs.pytest_args }}')" >&2
+              exit 1
+              ;;
+          esac
+
       - name: Check out TAF
         uses: actions/checkout@v6
 
@@ -59,7 +70,7 @@ jobs:
 
       - name: Seed the database
         run: |
-          curl -sf -X POST http://localhost:8000/api/v1/test/reset \
+          curl -sf --max-time 30 -X POST http://localhost:8000/api/v1/test/reset \
             -H "Content-Type: application/json" \
             -d '{"profile": "standard"}'
 
@@ -85,7 +96,11 @@ jobs:
           {
             echo "## ${{ inputs.run_label }}"
             echo '```'
-            tail -n 20 pytest-output.txt
+            if [ -f pytest-output.txt ]; then
+              tail -n 20 pytest-output.txt
+            else
+              echo "pytest never ran - an earlier step failed (see the job log above)."
+            fi
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
