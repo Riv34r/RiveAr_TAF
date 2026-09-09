@@ -1,18 +1,8 @@
 name: API tests
 
-# Boots the RiveAr App SUT (Postgres + backend, via its own docker-compose.yml)
-# from source, migrates and seeds the database, then runs the TAF API suite
-# against it. Called by smoke.yml (every push/PR) and regression.yml (daily +
-# on demand) with a different pytest selection - the boot sequence is
-# identical either way, so it lives here once instead of twice.
-#
-# API-specific on purpose, not a generic "run tests" workflow: the boot
-# sequence below (Postgres + backend, REST-based seed) only makes sense for
-# API tests. UI tests will need a browser + a running frontend instead, DB
-# tests may not need a running backend at all - each layer gets its own
-# reusable workflow, with its own boot, once it has real tests to run. This
-# one's pytest_args should always start with "tests/api" so a stray change
-# here can never widen it into running other layers' suites too.
+# Boots the RiveAr App SUT from source and runs the TAF API suite against
+# it. Called by smoke.yml and regression.yml. API-specific by design, not
+# a generic "run tests" - UI/DB get their own reusable workflow later.
 
 on:
   workflow_call:
