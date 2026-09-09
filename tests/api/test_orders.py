@@ -167,6 +167,7 @@ def test_invalid_sort_by_returns_422(customer_orders):
 @allure.title("Creating an order with valid items succeeds")
 @allure.tag("ORD-009")
 @allure.severity(allure.severity_level.BLOCKER)
+@pytest.mark.smoke
 def test_creating_an_order_with_valid_items_succeeds(
     customer_orders, factory, inventory_for
 ):

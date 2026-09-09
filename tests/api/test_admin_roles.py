@@ -121,6 +121,7 @@ def test_permission_catalogue_requires_permission(customer_client):
 @allure.title("Granting a permission a role does not yet have succeeds")
 @allure.tag("ROLE-007")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_granting_a_permission_the_role_lacks_succeeds(admin_client):
     role = role_named(admin_client, "SUPPORT")
 
