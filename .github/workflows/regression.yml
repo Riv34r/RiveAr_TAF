@@ -1,0 +1,14 @@
+name: Regression
+
+on:
+  schedule:
+    # 03:00 UTC daily - quiet hours, results waiting by morning.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  regression:
+    uses: ./.github/workflows/api-tests.yml
+    with:
+      run_label: Regression
+      pytest_args: tests/api -n 4
