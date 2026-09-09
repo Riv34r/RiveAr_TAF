@@ -1,0 +1,110 @@
+name: API tests
+
+# Boots the RiveAr App SUT from source and runs the TAF API suite against
+# it. Called by smoke.yml and regression.yml. API-specific by design, not
+# a generic "run tests" - UI/DB get their own reusable workflow later.
+
+on:
+  workflow_call:
+    inputs:
+      run_label:
+        description: Shown in the job summary and artifact name.
+        required: true
+        type: string
+      pytest_args:
+        description: >
+          Arguments passed to pytest - always start with "tests/api" so
+          this stays scoped to the API suite (e.g. "tests/api -m smoke").
+        required: true
+        type: string
+
+jobs:
+  api-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Enforce the tests/api scope
+        run: |
+          case "${{ inputs.pytest_args }}" in
+            tests/api*) ;;
+            *)
+              echo "::error::pytest_args must start with 'tests/api' (got: '${{ inputs.pytest_args }}')" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Check out TAF
+        uses: actions/checkout@v6
+
+      - name: Check out RiveAr App (SUT)
+        uses: actions/checkout@v6
+        with:
+          repository: Riv34r/RiveAr
+          path: sut
+
+      - name: Configure the SUT for a local Docker Compose run
+        working-directory: sut
+        run: |
+          cp .env.example .env
+          cp backend/.env.example backend/.env
+          cp frontend/.env.example frontend/.env
+
+      - name: Boot Postgres + backend
+        working-directory: sut
+        # Only what the API suite needs - the frontend is never started.
+        run: docker compose up -d --build --wait postgres backend
+
+      - name: Apply database migrations
+        working-directory: sut
+        run: docker compose exec -T backend alembic upgrade head
+
+      - name: Seed the database
+        run: |
+          curl -sf --max-time 30 -X POST http://localhost:8000/api/v1/test/reset \
+            -H "Content-Type: application/json" \
+            -d '{"profile": "standard"}'
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install TAF
+        run: pip install -e .
+
+      - name: Configure TAF
+        run: cp .env.example .env
+
+      - name: Run tests (${{ inputs.run_label }})
+        run: |
+          set -o pipefail
+          pytest ${{ inputs.pytest_args }} | tee pytest-output.txt
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## ${{ inputs.run_label }}"
+            echo '```'
+            if [ -f pytest-output.txt ]; then
+              tail -n 20 pytest-output.txt
+            else
+              echo "pytest never ran - an earlier step failed (see the job log above)."
+            fi
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.run_label }}-reports
+          path: |
+            reports/allure_results/
+            reports/junit.xml
+          retention-days: 14
+
+      - name: Show SUT logs
+        if: failure()
+        working-directory: sut
+        run: docker compose logs postgres backend

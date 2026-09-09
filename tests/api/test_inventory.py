@@ -188,6 +188,7 @@ def test_getting_an_unknown_inventory_id_returns_404(inventory_client):
 @allure.title("A positive stock_delta increases stock")
 @allure.tag("INV-011")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_a_positive_stock_delta_increases_stock(inventory_client, new_inventory):
     response = inventory_client.adjust_stock(new_inventory["id"], stock_delta=5)
 

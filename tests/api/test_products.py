@@ -82,6 +82,7 @@ def test_bulk_response_matches_schema(product_client, new_product):
 @allure.title("Listing products returns paginated results")
 @allure.tag("PROD-004")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_listing_products_returns_paginated_results(product_client):
     response = product_client.list_products()
 
