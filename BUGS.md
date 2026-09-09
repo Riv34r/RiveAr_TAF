@@ -43,7 +43,7 @@ storefront keeps displaying the pre-order availability.**
 | Status | **Fixed** 2026-08-20 |
 | Area | Backend — `GET /api/v1/products/{id}` |
 | Found | Exploratory testing while checking inventory reservation behaviour |
-| Regression test | `PROD-15` in `tests/test_products.py` |
+| Regression test | `PROD-15` in `tests/api/test_products.py` |
 
 ### What happens
 
@@ -214,7 +214,7 @@ adjustments - no row-level locking on the read.**
 | Area | Backend — `inventory_service.adjust_stock` |
 | Found | Designing inventory API test scenarios - probing concurrent stock
 adjustments before writing INV-018 |
-| Regression test | `INV-018` in `tests/test_inventory.py` (currently
+| Regression test | `INV-018` in `tests/api/test_inventory.py` (currently
 expected to fail against the live SUT) |
 
 ### What happens
@@ -304,7 +304,7 @@ reservations - even though the read is explicitly row-locked.**
 | Found | Designing orders API test scenarios - probing concurrent order
 creation before writing ORD-020, after finding the superficially similar
 `BUG-003` |
-| Regression test | `ORD-020` in `tests/test_orders.py` (currently
+| Regression test | `ORD-020` in `tests/api/test_orders.py` (currently
 expected to fail against the live SUT) |
 
 ### What happens
