@@ -1,5 +1,5 @@
 """
 Utils package.
 
-Shared assertion helpers used across the test suites.
+Shared assertion and reporting helpers used across the test suites.
 """
