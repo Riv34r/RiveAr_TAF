@@ -1,6 +1,7 @@
 """
 Core DB package.
 
-The framework-wide SQLAlchemy engine/session setup (session.py) and TAF's
-own ORM models (models.py) that the DB test suite (tests/db) is built on.
+The framework-wide SQLAlchemy connection setup. The models mirroring
+RiveAr's own tables live in db/, not here - they are specific to this SUT,
+not reusable framework machinery.
 """

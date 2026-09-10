@@ -11,7 +11,7 @@ from faker import Faker
 
 from api.clients.product_client import ProductClient
 from api.models.product import BulkOperationResponse, ProductResponse
-from core.db.models import Product
+from db.models import Product
 from utils.helpers import assert_error, assert_status_code
 
 pytestmark = allure.feature("Products")

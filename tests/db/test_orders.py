@@ -5,7 +5,7 @@ from decimal import Decimal
 import allure
 from sqlalchemy import delete, select, text, update
 
-from core.db.models import Order, OrderItem
+from db.models import Order, OrderItem
 from utils.helpers import assert_rejected
 
 pytestmark = allure.feature("DB: Orders")

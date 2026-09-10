@@ -1,5 +1,5 @@
 """
-TAF's own ORM models for the tables the DB suite touches.
+TAF's own ORM models for the tables its tests read.
 
 These mirror the shape of RiveAr App's real schema (see
 ../RiveAr App/backend/app/models/*.py) closely enough to query and to
@@ -63,15 +63,6 @@ class PromotionUsage(Base):
     promotion_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     discount_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
-
-
-class OrderStatusHistory(Base):
-    __tablename__ = "order_status_history"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
-    order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
-    from_status: Mapped[str | None]
-    to_status: Mapped[str]
 
 
 class Order(Base):

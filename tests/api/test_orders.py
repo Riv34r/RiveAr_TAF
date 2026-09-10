@@ -14,7 +14,7 @@ from sqlalchemy import select
 from api.clients.address_client import AddressClient
 from api.clients.order_client import OrderClient
 from api.models.order import OrderResponse, OrderStatusHistoryResponse
-from core.db.models import InventoryTransaction, Promotion, PromotionUsage
+from db.models import InventoryTransaction, Promotion, PromotionUsage
 from utils.helpers import assert_error, assert_paginated_response, assert_status_code
 
 pytestmark = allure.feature("Orders")

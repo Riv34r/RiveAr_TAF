@@ -64,10 +64,10 @@ For each scenario:
 6. Run the relevant test after implementation.
 
 Prefer direct database interaction through TAF's own SQLAlchemy layer
-(core/db/models.py, core/db/session.py, the db_session fixture in
-tests/db/conftest.py) - never the SUT's ORM/session (RiveAr App's
+(db/models.py, core/db/session.py, the db_session fixture in
+tests/conftest.py) - never the SUT's ORM/session (RiveAr App's
 app.db.session, app.models). TAF stays fully independent of the SUT's
-source; core/db/models.py mirrors the real schema but is declared here,
+source; db/models.py mirrors the real schema but is declared here,
 not imported.
 
 Use session.flush() to send statements and trigger constraint checks -

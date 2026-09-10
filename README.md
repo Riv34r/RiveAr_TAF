@@ -20,16 +20,14 @@ code yet.
 
 - `core/` - framework-wide building blocks, one subpackage per layer:
   - `core/api/` - `ApiClient`, the one place that knows how to reach the API
-  - `core/db/` - TAF's own SQLAlchemy models and engine/session setup for
-    the SUT's Postgres database (declared independently, not imported
-    from the SUT - see `core/db/models.py`). A `db/` package (mirroring
-    `api/clients/`) will hold reusable, composable query conditions under
-    `db/queries/<domain>.py` once a scenario needs more than one - not
-    created ahead of that need.
+  - `core/db/` - the SQLAlchemy connection setup for the SUT's Postgres
 - `api/` - everything specific to testing the HTTP API:
   - `api/clients/` - domain clients built on `core.api.api_client.ApiClient`
     (`AuthClient`, `AdminClient`, ...)
   - `api/models/` - Pydantic response contract models, one module per domain
+- `db/` - everything specific to the SUT's database:
+  - `db/models.py` - ORM models mirroring its tables, declared here rather
+    than imported from the SUT
 - `utils/` - shared assertion helpers (`assert_status_code`, `assert_error`, ...)
 - `tests/` - test suites, split the same way:
   - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
