@@ -1,5 +1,7 @@
 """Shared helper functions."""
 
+from sqlalchemy.exc import IntegrityError
+
 from api.models.auth import TokenResponse
 
 
@@ -21,12 +23,7 @@ def assert_valid_token_pair(tokens: TokenResponse) -> None:
 
 
 def assert_paginated_response(response, expected_status: int = 200) -> dict:
-    """Assert a paginated list envelope ({"items", "pagination"}), and return the body.
-
-    Every listing endpoint (products, inventory, orders, ...) shares this
-    shape, so callers just add whatever content assertions are specific to
-    the endpoint under test.
-    """
+    """Assert a paginated list envelope ({"items", "pagination"}); return the body."""
     assert_status_code(response, expected_status)
 
     body = response.json()
@@ -39,6 +36,34 @@ def assert_paginated_response(response, expected_status: int = 200) -> dict:
     }, f"Response 'pagination' missing expected keys: {body.get('pagination')}"
 
     return body
+
+
+def assert_rejected(
+    session, statement, *, constraint: str = None, sqlstate: str = None
+):
+    """Run `statement`, expecting the database to refuse it.
+
+    Executes within the caller's transaction (nothing commits). On the
+    expected IntegrityError checks psycopg's `sqlstate` ("23514" CHECK,
+    "23503" foreign key, "23505" unique) and/or the `constraint` name
+    Postgres reported (e.g. "ck_orders_total_non_negative"). Fails if the
+    write unexpectedly succeeds.
+    """
+    try:
+        session.execute(statement)
+    except IntegrityError as exc:
+        orig = exc.orig
+        if sqlstate is not None:
+            assert (
+                orig.sqlstate == sqlstate
+            ), f"Expected SQLSTATE {sqlstate}, got {orig.sqlstate}: {orig}"
+        if constraint is not None:
+            actual = orig.diag.constraint_name
+            assert (
+                actual == constraint
+            ), f"Expected constraint {constraint!r}, got {actual!r}: {orig}"
+        return
+    raise AssertionError("Expected the database to reject this write, but it succeeded")
 
 
 def assert_error(response, expected_status: int, expected_code: str) -> dict:

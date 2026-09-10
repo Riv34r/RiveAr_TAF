@@ -17,6 +17,8 @@ dependencies = [
     "allure-pytest==2.13.5",
     "pytest-xdist==3.6.1",
     "pytest-html==4.1.1",
+    "SQLAlchemy==2.0.52",
+    "psycopg[binary]==3.3.5",
 ]
 
 [tool.poetry]

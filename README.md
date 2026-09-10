@@ -13,13 +13,19 @@ else is built incrementally on top of this - see [Roadmap](#roadmap).
 
 ## Structure
 
-The framework is organized by layer. Only the API layer exists today; UI and
-DB get their own `core/<layer>/`, `<layer>/`, and `tests/<layer>/` the same
-way once those start (see [Roadmap](#roadmap)) - no empty scaffolding for
-layers that don't have code yet.
+The framework is organized by layer. API and DB exist today; UI gets its
+own `core/ui/`, `ui/`, and `tests/ui/` the same way once it starts (see
+[Roadmap](#roadmap)) - no empty scaffolding for layers that don't have
+code yet.
 
 - `core/` - framework-wide building blocks, one subpackage per layer:
   - `core/api/` - `ApiClient`, the one place that knows how to reach the API
+  - `core/db/` - TAF's own SQLAlchemy models and engine/session setup for
+    the SUT's Postgres database (declared independently, not imported
+    from the SUT - see `core/db/models.py`). A `db/` package (mirroring
+    `api/clients/`) will hold reusable, composable query conditions under
+    `db/queries/<domain>.py` once a scenario needs more than one - not
+    created ahead of that need.
 - `api/` - everything specific to testing the HTTP API:
   - `api/clients/` - domain clients built on `core.api.api_client.ApiClient`
     (`AuthClient`, `AdminClient`, ...)
@@ -27,6 +33,7 @@ layers that don't have code yet.
 - `utils/` - shared assertion helpers (`assert_status_code`, `assert_error`, ...)
 - `tests/` - test suites, split the same way:
   - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
+  - `tests/db/` - DB test suites and `conftest.py`
 
 ## Setup
 
@@ -43,6 +50,8 @@ repo) with test-support routes enabled (any non-production `APP_ENV`).
 ```bash
 pytest
 pytest -m smoke
+pytest tests/api
+pytest tests/db
 ```
 
 ```bash
