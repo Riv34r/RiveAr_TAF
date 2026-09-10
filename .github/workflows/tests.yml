@@ -1,8 +1,8 @@
-name: API tests
+name: Tests
 
-# Boots the RiveAr App SUT from source and runs the TAF API suite against
-# it. Called by smoke.yml and regression.yml. API-specific by design, not
-# a generic "run tests" - UI/DB get their own reusable workflow later.
+# Boots the RiveAr App SUT from source, then runs TAF's suites against it.
+# Called by smoke.yml and regression.yml - they share the one boot, which
+# costs minutes while the tests cost seconds.
 
 on:
   workflow_call:
@@ -11,26 +11,21 @@ on:
         description: Shown in the job summary and artifact name.
         required: true
         type: string
-      pytest_args:
-        description: >
-          Arguments passed to pytest - always start with "tests/api" so
-          this stays scoped to the API suite (e.g. "tests/api -m smoke").
-        required: true
+      api_args:
+        description: Extra pytest flags for the API suite - flags only, no paths.
+        required: false
         type: string
+        default: ""
 
 jobs:
-  api-tests:
+  tests:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Enforce the tests/api scope
+      - name: Reject suite paths in api_args
         run: |
-          case "${{ inputs.pytest_args }}" in
-            tests/api*) ;;
-            *)
-              echo "::error::pytest_args must start with 'tests/api' (got: '${{ inputs.pytest_args }}')" >&2
-              exit 1
-              ;;
+          case "${{ inputs.api_args }}" in
+            *tests/*) echo "::error::api_args takes flags only" >&2; exit 1 ;;
           esac
 
       - name: Check out TAF
@@ -51,7 +46,7 @@ jobs:
 
       - name: Boot Postgres + backend
         working-directory: sut
-        # Only what the API suite needs - the frontend is never started.
+        # Only what the suites need - the frontend is never started.
         run: docker compose up -d --build --wait postgres backend
 
       - name: Apply database migrations
@@ -61,8 +56,7 @@ jobs:
       - name: Seed the database
         run: |
           curl -sf --max-time 30 -X POST http://localhost:8000/api/v1/test/reset \
-            -H "Content-Type: application/json" \
-            -d '{"profile": "standard"}'
+            -H "Content-Type: application/json" -d '{"profile": "standard"}'
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -75,23 +69,33 @@ jobs:
       - name: Configure TAF
         run: cp .env.example .env
 
-      - name: Run tests (${{ inputs.run_label }})
+      # continue-on-error so one red suite doesn't hide the other's result -
+      # the gate step at the end turns that back into a job failure.
+      - name: API tests
+        id: api
+        continue-on-error: true
         run: |
           set -o pipefail
-          pytest ${{ inputs.pytest_args }} | tee pytest-output.txt
+          pytest tests/api ${{ inputs.api_args }} --junitxml=reports/junit-api.xml | tee pytest-api.txt
+
+      - name: DB tests
+        id: db
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          pytest tests/db --junitxml=reports/junit-db.xml | tee pytest-db.txt
 
       - name: Write job summary
         if: always()
         run: |
           {
             echo "## ${{ inputs.run_label }}"
-            echo '```'
-            if [ -f pytest-output.txt ]; then
-              tail -n 20 pytest-output.txt
-            else
-              echo "pytest never ran - an earlier step failed (see the job log above)."
-            fi
-            echo '```'
+            for suite in api db; do
+              echo "### $suite"
+              echo '```'
+              tail -n 20 "pytest-$suite.txt" 2>/dev/null || echo "did not run"
+              echo '```'
+            done
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload test reports
@@ -99,12 +103,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.run_label }}-reports
-          path: |
-            reports/allure_results/
-            reports/junit.xml
+          path: reports/
           retention-days: 14
 
+      # Only fires on a boot failure - continue-on-error swallows test failures.
       - name: Show SUT logs
         if: failure()
         working-directory: sut
         run: docker compose logs postgres backend
+
+      - name: Fail if either suite failed
+        if: always()
+        run: |
+          [ "${{ steps.api.outcome }}" = success ] && [ "${{ steps.db.outcome }}" = success ]

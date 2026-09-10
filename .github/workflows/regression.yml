@@ -8,7 +8,7 @@ on:
 
 jobs:
   regression:
-    uses: ./.github/workflows/api-tests.yml
+    uses: ./.github/workflows/tests.yml
     with:
       run_label: Regression
-      pytest_args: tests/api -n 4
+      api_args: -n 4
