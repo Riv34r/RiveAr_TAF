@@ -10,7 +10,7 @@ from api.models.admin import AuditLogResponse
 from api.models.auth import UserResponse
 from api.models.common import PaginatedResponse
 from core.api.api_client import ApiClient
-from utils.helpers import assert_error, assert_status_code
+from utils.helpers import assert_error, assert_status_code, step
 
 pytestmark = allure.feature("Admin")
 
@@ -34,9 +34,11 @@ ADMIN_ENDPOINTS = [
     "name,call", ADMIN_ENDPOINTS, ids=[e[0] for e in ADMIN_ENDPOINTS]
 )
 def test_admin_endpoints_require_authentication(api, name, call):
-    response = call(AdminClient(api))
+    with step(f"Call {name} without a token"):
+        response = call(AdminClient(api))
 
-    assert_error(response, 401, "TOKEN_MISSING")
+    with step("The request is turned away"):
+        assert_error(response, 401, "TOKEN_MISSING")
 
 
 # ---------------------------------------------------------------------------
@@ -48,25 +50,30 @@ def test_admin_endpoints_require_authentication(api, name, call):
 @allure.tag("ADMIN-002")
 @allure.severity(allure.severity_level.NORMAL)
 def test_list_users_response_matches_schema(admin_client):
-    response = admin_client.list_users(page_size=1)
+    with step("List one user"):
+        response = admin_client.list_users(page_size=1)
 
-    assert_status_code(response, 200)
-    body = PaginatedResponse[UserResponse].model_validate(response.json())
-    assert body.items
+    with step("The page validates as PaginatedResponse[UserResponse]"):
+        assert_status_code(response, 200)
+        body = PaginatedResponse[UserResponse].model_validate(response.json())
+        assert body.items
 
 
 @allure.title("Listing audit logs response matches the AuditLogResponse schema")
 @allure.tag("ADMIN-003")
 @allure.severity(allure.severity_level.NORMAL)
 def test_list_audit_logs_response_matches_schema(admin_client, new_customer):
-    user_id = new_customer["attributes"]["user_id"]
-    admin_client.update_user(user_id, is_active=False)
+    with step("Disable a user, writing an audit entry"):
+        user_id = new_customer["attributes"]["user_id"]
+        admin_client.update_user(user_id, is_active=False)
 
-    response = admin_client.list_audit_logs(entity_id=user_id)
+    with step("Read that user's audit entries"):
+        response = admin_client.list_audit_logs(entity_id=user_id)
 
-    assert_status_code(response, 200)
-    body = PaginatedResponse[AuditLogResponse].model_validate(response.json())
-    assert body.items
+    with step("The page validates as PaginatedResponse[AuditLogResponse]"):
+        assert_status_code(response, 200)
+        body = PaginatedResponse[AuditLogResponse].model_validate(response.json())
+        assert body.items
 
 
 # ---------------------------------------------------------------------------
@@ -78,56 +85,67 @@ def test_list_audit_logs_response_matches_schema(admin_client, new_customer):
 @allure.tag("ADMIN-004")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_users_returns_every_account_paginated(admin_client, seed_manifest):
-    response = admin_client.list_users(page_size=100)
+    with step("List the users"):
+        response = admin_client.list_users(page_size=100)
 
-    assert_status_code(response, 200)
-    body = response.json()
-    assert set(body["pagination"]) >= {"page", "page_size", "total", "total_pages"}
+    with step("The response is a paginated envelope"):
+        assert_status_code(response, 200)
+        body = response.json()
+        assert set(body["pagination"]) >= {"page", "page_size", "total", "total_pages"}
 
-    returned_emails = {item["email"] for item in body["items"]}
-    seeded_emails = {account["email"] for account in seed_manifest["accounts"]}
-    assert seeded_emails <= returned_emails
+    with step("Every seeded account is in it"):
+        returned_emails = {item["email"] for item in body["items"]}
+        seeded_emails = {account["email"] for account in seed_manifest["accounts"]}
+        assert seeded_emails <= returned_emails
 
 
 @allure.title("Listing users without the required permission returns 403")
 @allure.tag("ADMIN-005")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_listing_users_without_permission_returns_403(customer_client):
-    response = customer_client.list_users()
+    with step("A customer lists the users"):
+        response = customer_client.list_users()
 
-    error = assert_error(response, 403, "INSUFFICIENT_PERMISSIONS")
-    assert "users:manage" in error["details"]["required_any_of"]
+    with step("They are refused, and told which permission was needed"):
+        error = assert_error(response, 403, "INSUFFICIENT_PERMISSIONS")
+        assert "users:manage" in error["details"]["required_any_of"]
 
 
 @allure.title("Listing users with no token returns 401")
 @allure.tag("ADMIN-006")
 @allure.severity(allure.severity_level.NORMAL)
 def test_listing_users_with_no_token_returns_401(api):
-    response = AdminClient(api).list_users()
+    with step("List the users without a token"):
+        response = AdminClient(api).list_users()
 
-    assert_error(response, 401, "TOKEN_MISSING")
+    with step("The request is turned away"):
+        assert_error(response, 401, "TOKEN_MISSING")
 
 
 @allure.title("Getting a known user by ID succeeds")
 @allure.tag("ADMIN-007")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_a_known_user_by_id_succeeds(admin_client, customer):
-    response = admin_client.get_user(customer["user_id"])
+    with step("Fetch the seeded customer by ID"):
+        response = admin_client.get_user(customer["user_id"])
 
-    assert_status_code(response, 200)
-    body = response.json()
-    assert body["id"] == str(customer["user_id"])
-    assert body["email"] == customer["email"]
-    assert customer["role"] in body["roles"]
+    with step("Their identity and role come back"):
+        assert_status_code(response, 200)
+        body = response.json()
+        assert body["id"] == str(customer["user_id"])
+        assert body["email"] == customer["email"]
+        assert customer["role"] in body["roles"]
 
 
 @allure.title("Getting an unknown user ID returns 404")
 @allure.tag("ADMIN-008")
 @allure.severity(allure.severity_level.NORMAL)
 def test_getting_an_unknown_user_id_returns_404(admin_client):
-    response = admin_client.get_user(uuid.uuid4())
+    with step("Fetch a user ID that does not exist"):
+        response = admin_client.get_user(uuid.uuid4())
 
-    assert_error(response, 404, "USER_NOT_FOUND")
+    with step("The user is not found"):
+        assert_error(response, 404, "USER_NOT_FOUND")
 
 
 @allure.title("Disabling a user's account takes effect immediately")
@@ -139,13 +157,16 @@ def test_disabling_a_users_account_takes_effect_immediately(
 ):
     attrs = new_customer["attributes"]
 
-    response = admin_client.update_user(attrs["user_id"], is_active=False)
+    with step("Disable the account"):
+        response = admin_client.update_user(attrs["user_id"], is_active=False)
 
-    assert_status_code(response, 200)
-    assert response.json()["is_active"] is False
+    with step("It comes back inactive"):
+        assert_status_code(response, 200)
+        assert response.json()["is_active"] is False
 
-    login = auth_client.login(attrs["email"], attrs["password"])
-    assert_error(login, 401, "USER_DISABLED")
+    with step("They can no longer log in"):
+        login = auth_client.login(attrs["email"], attrs["password"])
+        assert_error(login, 401, "USER_DISABLED")
 
 
 @allure.title("Reassigning a user's roles replaces the previous set")
@@ -156,10 +177,12 @@ def test_reassigning_a_users_roles_replaces_the_previous_set(
 ):
     user_id = new_customer["attributes"]["user_id"]
 
-    response = admin_client.update_user(user_id, roles=["SUPPORT"])
+    with step("Reassign the customer to SUPPORT"):
+        response = admin_client.update_user(user_id, roles=["SUPPORT"])
 
-    assert_status_code(response, 200)
-    assert response.json()["roles"] == ["SUPPORT"]
+    with step("SUPPORT is now their only role"):
+        assert_status_code(response, 200)
+        assert response.json()["roles"] == ["SUPPORT"]
 
 
 @allure.title("Setting an empty roles list is rejected")
@@ -168,18 +191,22 @@ def test_reassigning_a_users_roles_replaces_the_previous_set(
 def test_setting_an_empty_roles_list_is_rejected(admin_client, new_customer):
     user_id = new_customer["attributes"]["user_id"]
 
-    response = admin_client.update_user(user_id, roles=[])
+    with step("Leave the user with no roles at all"):
+        response = admin_client.update_user(user_id, roles=[])
 
-    assert_error(response, 422, "VALIDATION_ERROR")
+    with step("The empty list is rejected"):
+        assert_error(response, 422, "VALIDATION_ERROR")
 
 
 @allure.title("Updating an unknown user ID returns 404")
 @allure.tag("ADMIN-012")
 @allure.severity(allure.severity_level.NORMAL)
 def test_updating_an_unknown_user_id_returns_404(admin_client):
-    response = admin_client.update_user(uuid.uuid4(), is_active=False)
+    with step("Update a user ID that does not exist"):
+        response = admin_client.update_user(uuid.uuid4(), is_active=False)
 
-    assert_error(response, 404, "USER_NOT_FOUND")
+    with step("The user is not found"):
+        assert_error(response, 404, "USER_NOT_FOUND")
 
 
 @allure.title("An admin can disable their own account")
@@ -190,26 +217,32 @@ def test_an_admin_can_disable_their_own_account(
 ):
     user_id = new_customer["attributes"]["user_id"]
 
-    promote = admin_client.update_user(user_id, roles=["ADMIN"])
-    assert_status_code(promote, 200)
+    with step("Promote a fresh account to ADMIN"):
+        promote = admin_client.update_user(user_id, roles=["ADMIN"])
+        assert_status_code(promote, 200)
 
-    attrs = new_customer["attributes"]
-    own_tokens = auth_client.login(attrs["email"], attrs["password"]).json()
-    own_admin = AdminClient(ApiClient(api_url, own_tokens["access_token"]))
+    with step("Log in as them"):
+        attrs = new_customer["attributes"]
+        own_tokens = auth_client.login(attrs["email"], attrs["password"]).json()
+        own_admin = AdminClient(ApiClient(api_url, own_tokens["access_token"]))
 
-    response = own_admin.update_user(user_id, is_active=False)
+    with step("They disable their own account"):
+        response = own_admin.update_user(user_id, is_active=False)
 
-    assert_status_code(response, 200)
-    assert response.json()["is_active"] is False
+    with step("Nothing stops them"):
+        assert_status_code(response, 200)
+        assert response.json()["is_active"] is False
 
 
 @allure.title("A malformed user_id (not a UUID) returns 422, not 404")
 @allure.tag("ADMIN-014")
 @allure.severity(allure.severity_level.MINOR)
 def test_malformed_user_id_returns_422(admin_client):
-    response = admin_client.get_user("not-a-uuid")
+    with step("Fetch a user_id that is not a UUID"):
+        response = admin_client.get_user("not-a-uuid")
 
-    assert_error(response, 422, "VALIDATION_ERROR")
+    with step("It is rejected as malformed, not as missing"):
+        assert_error(response, 422, "VALIDATION_ERROR")
 
 
 @allure.title("Setting an unrecognised role name is rejected")
@@ -218,9 +251,11 @@ def test_malformed_user_id_returns_422(admin_client):
 def test_setting_an_unrecognised_role_name_is_rejected(admin_client, new_customer):
     user_id = new_customer["attributes"]["user_id"]
 
-    response = admin_client.update_user(user_id, roles=["NOT_A_ROLE"])
+    with step("Assign a role that does not exist"):
+        response = admin_client.update_user(user_id, roles=["NOT_A_ROLE"])
 
-    assert_error(response, 422, "VALIDATION_ERROR")
+    with step("The role name is rejected"):
+        assert_error(response, 422, "VALIDATION_ERROR")
 
 
 # ---------------------------------------------------------------------------
@@ -234,28 +269,33 @@ def test_setting_an_unrecognised_role_name_is_rejected(admin_client, new_custome
 def test_listing_audit_logs_returns_recent_entries_paginated(
     admin_client, new_customer
 ):
-    user_id = new_customer["attributes"]["user_id"]
-    admin_client.update_user(user_id, is_active=False)
+    with step("Disable a user, writing an audit entry"):
+        user_id = new_customer["attributes"]["user_id"]
+        admin_client.update_user(user_id, is_active=False)
 
     # Filtered by entity_id rather than reading an unfiltered position 0 -
     # audit-logs is a list shared across the whole run, and another worker's
     # entry can land newer than this one under -n 4 (confirmed: it did).
-    response = admin_client.list_audit_logs(entity_id=user_id)
+    with step("Read that user's audit entries"):
+        response = admin_client.list_audit_logs(entity_id=user_id)
 
-    assert_status_code(response, 200)
-    body = response.json()
-    assert set(body["pagination"]) >= {"page", "page_size", "total", "total_pages"}
-    assert body["items"][0]["entity_id"] == user_id
+    with step("The page is an envelope holding that user's entry"):
+        assert_status_code(response, 200)
+        body = response.json()
+        assert set(body["pagination"]) >= {"page", "page_size", "total", "total_pages"}
+        assert body["items"][0]["entity_id"] == user_id
 
 
 @allure.title("Listing audit logs without audit_logs:view returns 403")
 @allure.tag("ADMIN-017")
 @allure.severity(allure.severity_level.MINOR)
 def test_listing_audit_logs_without_permission_returns_403(customer_client):
-    response = customer_client.list_audit_logs()
+    with step("A customer reads the audit log"):
+        response = customer_client.list_audit_logs()
 
-    error = assert_error(response, 403, "INSUFFICIENT_PERMISSIONS")
-    assert "audit_logs:view" in error["details"]["required_any_of"]
+    with step("They are refused, and told which permission was needed"):
+        error = assert_error(response, 403, "INSUFFICIENT_PERMISSIONS")
+        assert "audit_logs:view" in error["details"]["required_any_of"]
 
 
 @allure.title("Filtering audit logs by action returns only matching entries")
@@ -264,47 +304,55 @@ def test_listing_audit_logs_without_permission_returns_403(customer_client):
 def test_filtering_audit_logs_by_action_returns_only_matching_entries(
     admin_client, new_customer
 ):
-    user_id = new_customer["attributes"]["user_id"]
-    admin_client.update_user(user_id, is_active=False)
+    with step("Disable a user, writing a USER_STATUS_CHANGED entry"):
+        user_id = new_customer["attributes"]["user_id"]
+        admin_client.update_user(user_id, is_active=False)
 
-    response = admin_client.list_audit_logs(action="USER_STATUS_CHANGED")
+    with step("Filter the audit log by that action"):
+        response = admin_client.list_audit_logs(action="USER_STATUS_CHANGED")
 
-    assert_status_code(response, 200)
-    items = response.json()["items"]
-    assert items
-    assert all(item["action"] == "USER_STATUS_CHANGED" for item in items)
+    with step("Nothing but that action comes back"):
+        assert_status_code(response, 200)
+        items = response.json()["items"]
+        assert items
+        assert all(item["action"] == "USER_STATUS_CHANGED" for item in items)
 
 
 @allure.title("Granting a permission is itself recorded in the audit log")
 @allure.tag("ADMIN-019")
 @allure.severity(allure.severity_level.NORMAL)
 def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
-    roles = admin_client.list_roles().json()
-    support = next(r for r in roles if r["name"] == "SUPPORT")
+    with step("Given the SUPPORT role"):
+        roles = admin_client.list_roles().json()
+        support = next(r for r in roles if r["name"] == "SUPPORT")
 
     permission = None
     try:
-        grant_response = admin_client.grant_permission(
-            support["id"], "customers:manage"
-        )
-        assert_status_code(grant_response, 201)
-        permission = next(
-            (
-                p
-                for p in grant_response.json()["permissions"]
-                if p["name"] == "customers:manage"
-            ),
-            None,
-        )
-        assert permission is not None, "Granted permission missing from the response"
+        with step("Grant it customers:manage"):
+            grant_response = admin_client.grant_permission(
+                support["id"], "customers:manage"
+            )
+            assert_status_code(grant_response, 201)
+            permission = next(
+                (
+                    p
+                    for p in grant_response.json()["permissions"]
+                    if p["name"] == "customers:manage"
+                ),
+                None,
+            )
+            assert (
+                permission is not None
+            ), "Granted permission missing from the response"
 
-        response = admin_client.list_audit_logs(action="PERMISSION_GRANTED")
-        assert_status_code(response, 200)
-        assert any(
-            item["entity_type"] == "role"
-            and item["new_value"].get("permission") == "customers:manage"
-            for item in response.json()["items"]
-        )
+        with step("The grant itself shows up in the audit log"):
+            response = admin_client.list_audit_logs(action="PERMISSION_GRANTED")
+            assert_status_code(response, 200)
+            assert any(
+                item["entity_type"] == "role"
+                and item["new_value"].get("permission") == "customers:manage"
+                for item in response.json()["items"]
+            )
     finally:
         if permission is not None:
             admin_client.revoke_permission(support["id"], permission["id"])
@@ -314,22 +362,26 @@ def test_granting_a_permission_is_recorded_in_the_audit_log(admin_client):
 @allure.tag("ADMIN-020")
 @allure.severity(allure.severity_level.NORMAL)
 def test_combining_audit_log_filters_narrows_the_result(admin_client, factory):
-    first_id = factory("customer")["attributes"]["user_id"]
-    second_id = factory("customer")["attributes"]["user_id"]
-    admin_client.update_user(first_id, is_active=False)
-    admin_client.update_user(second_id, is_active=False)
+    with step("Disable two users, writing an entry for each"):
+        first_id = factory("customer")["attributes"]["user_id"]
+        second_id = factory("customer")["attributes"]["user_id"]
+        admin_client.update_user(first_id, is_active=False)
+        admin_client.update_user(second_id, is_active=False)
 
-    by_action = admin_client.list_audit_logs(action="USER_STATUS_CHANGED").json()[
-        "items"
-    ]
-    entity_ids = {item["entity_id"] for item in by_action}
-    assert {first_id, second_id} <= entity_ids
+    with step("Filtering by action alone returns both"):
+        by_action = admin_client.list_audit_logs(action="USER_STATUS_CHANGED").json()[
+            "items"
+        ]
+        entity_ids = {item["entity_id"] for item in by_action}
+        assert {first_id, second_id} <= entity_ids
 
-    combined = admin_client.list_audit_logs(
-        action="USER_STATUS_CHANGED", entity_id=first_id
-    )
+    with step("Adding an entity_id to the same filter"):
+        combined = admin_client.list_audit_logs(
+            action="USER_STATUS_CHANGED", entity_id=first_id
+        )
 
-    assert_status_code(combined, 200)
-    items = combined.json()["items"]
-    assert items
-    assert all(item["entity_id"] == first_id for item in items)
+    with step("Narrows it down to that one user"):
+        assert_status_code(combined, 200)
+        items = combined.json()["items"]
+        assert items
+        assert all(item["entity_id"] == first_id for item in items)

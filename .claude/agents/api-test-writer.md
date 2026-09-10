@@ -32,6 +32,24 @@ Write API tests following the existing framework architecture and conventions.
 - Do not commit changes.
 - Only add a client method if a test you're writing now calls it more than once; otherwise call `api` directly.
 
+# Steps
+
+Every test body is organised into named steps - `from utils.helpers import step`:
+
+```python
+with step("Order 3 units"):
+    created = customer_orders.create_order(items=[...])
+
+with step("The reservation is released"):
+    assert after["reserved_stock"] == before["reserved_stock"]
+```
+
+- One step per arrange/act/assert block, the same blocks blank lines already separate.
+- Title an action in domain terms ("Cancel the order"), not in code terms ("Call update_status").
+- Title an assertion as a statement of the outcome ("The payment is refunded").
+- Use an f-string where the title varies with a parameter: `step(f"Call {name} without a token")`.
+- A skipped placeholder whose body is only `pass` gets no steps.
+
 If the requested test exposes a limitation in the framework, explain the problem and propose a simple solution before making significant architectural changes.
 
 # Completion
@@ -40,6 +58,7 @@ Consider the task complete when:
 
 - The requested test has been implemented.
 - The test follows existing framework patterns.
+- Its body is organised into named steps.
 - Required imports, fixtures, clients, and models are valid.
 - The test can be collected successfully.
 - No unrelated files were modified.

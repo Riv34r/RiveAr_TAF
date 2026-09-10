@@ -3,6 +3,8 @@
 import allure
 import pytest
 
+from utils.helpers import step
+
 pytestmark = allure.feature("Health")
 
 
@@ -11,12 +13,14 @@ pytestmark = allure.feature("Health")
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_health_reports_api_and_database_are_up(api):
-    response = api.get("/health")
+    with step("Ask the API how it is doing"):
+        response = api.get("/health")
 
-    assert response.status_code == 200
-    body = response.json()
-    assert body["status"] == "ok"
-    assert body["database"] == "connected"
+    with step("It reports itself and its database as healthy"):
+        assert response.status_code == 200
+        body = response.json()
+        assert body["status"] == "ok"
+        assert body["database"] == "connected"
 
 
 @allure.title("Health response identifies a non-production environment")
@@ -25,8 +29,10 @@ def test_health_reports_api_and_database_are_up(api):
 @pytest.mark.smoke
 def test_health_identifies_the_environment_under_test(api):
     """Guards against the suite silently running against prod."""
-    body = api.get("/health").json()
+    with step("Read the health response"):
+        body = api.get("/health").json()
 
-    assert body["environment"], "Health response does not name an environment"
-    assert body["environment"].lower() not in {"production", "prod"}
-    assert body["version"], "Health response does not report a version"
+    with step("The environment it names is not production"):
+        assert body["environment"], "Health response does not name an environment"
+        assert body["environment"].lower() not in {"production", "prod"}
+        assert body["version"], "Health response does not report a version"

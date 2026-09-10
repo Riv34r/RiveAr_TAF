@@ -74,6 +74,20 @@ Use session.flush() to send statements and trigger constraint checks -
 never session.commit(). db_session rolls back unconditionally after each
 test, so nothing a test writes (valid or constraint-violating) outlives it.
 
+Organise every test body into named steps - `from utils.helpers import step`:
+
+```python
+with step("Given an inventory row holding stock"):
+    row = db_session.execute(select(Inventory).where(...)).scalar_one()
+
+with step("Reserving one more than it holds is refused"):
+    assert_rejected(db_session, update(Inventory)..., constraint="...")
+```
+
+One step per arrange/act/assert block. Title an action in domain terms
+("Delete the record"), an assertion as a statement of the outcome ("Its
+transactions go with it").
+
 For reusable, composable query conditions (e.g. a handful of named filters
 combined into one query), add functions under db/queries/<domain>.py -
 each takes a query and returns a modified query, so they chain. Only
@@ -99,6 +113,7 @@ The goal is quality over quantity. Prefer a few meaningful DB tests over broad, 
 After implementation, briefly report:
 
 - what tests were added/changed
+- whether their bodies are organised into named steps
 - whether any DB infrastructure was added
 - test execution result
 - any important assumptions or limitations
