@@ -5,7 +5,7 @@ import uuid
 import allure
 from sqlalchemy import delete, select, update
 
-from core.db.models import Inventory, InventoryTransaction
+from db.models import Inventory, InventoryTransaction
 from utils.helpers import assert_rejected
 
 pytestmark = allure.feature("DB: Inventory")

@@ -1,16 +1,4 @@
-"""
-Shared pytest fixtures for the DB suite.
-
-    db_engine  -> a SQLAlchemy engine bound to the SUT's Postgres, from env
-    db_session -> a Session, function-scoped and always rolled back after
-                  the test - nothing a test writes outlives it, pass or fail
-    count_rows -> count_rows(<condition>) - how many rows match
-
-A test sends a statement with session.execute(update(...)/delete(...)/
-text(...)) (which hits the DB, and raises on a constraint violation, right
-there) or with session.add(obj) + session.flush(). Either way it stays
-inside the fixture's transaction and never commits.
-"""
+"""Fixtures shared by more than one suite."""
 
 import os
 
@@ -26,6 +14,7 @@ load_dotenv(override=False)
 
 @pytest.fixture(scope="session")
 def db_engine():
+    """A SQLAlchemy engine bound to the SUT's Postgres, from the environment."""
     dsn = build_dsn(
         host=os.environ["DB_HOST"],
         port=os.environ["DB_PORT"],
@@ -40,6 +29,7 @@ def db_engine():
 
 @pytest.fixture
 def db_session(db_engine):
+    """A Session that always rolls back - nothing a test writes outlives it."""
     connection = db_engine.connect()
     transaction = connection.begin()
     session = Session(bind=connection)

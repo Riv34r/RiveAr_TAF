@@ -37,7 +37,7 @@ Examples:
 - data integrity
 - indexes/query behavior when relevant
 
-Do NOT turn these into API → DB or UI → API → DB tests unless the scenario explicitly requires integration testing.
+Do NOT route these through the API or the UI - a DB test talks to the database and nothing else.
 
 ## Before implementation
 
@@ -64,10 +64,10 @@ For each scenario:
 6. Run the relevant test after implementation.
 
 Prefer direct database interaction through TAF's own SQLAlchemy layer
-(core/db/models.py, core/db/session.py, the db_session fixture in
-tests/db/conftest.py) - never the SUT's ORM/session (RiveAr App's
+(db/models.py, core/db/session.py, the db_session fixture in
+tests/conftest.py) - never the SUT's ORM/session (RiveAr App's
 app.db.session, app.models). TAF stays fully independent of the SUT's
-source; core/db/models.py mirrors the real schema but is declared here,
+source; db/models.py mirrors the real schema but is declared here,
 not imported.
 
 Use session.flush() to send statements and trigger constraint checks -
@@ -86,16 +86,11 @@ Do not introduce new abstractions unless they are genuinely required.
 
 ## Important
 
-Keep the distinction clear:
+A DB test goes straight to the database: `test → DB`. Never through the API.
 
-DB test:
-`test → DB`
-
-Integration test:
-`test → API → DB`
-
-E2E test:
-`test → UI → API → DB`
+Where an API test needs to check what its own response can't show, the DB
+assertion is added to that test in `tests/api/` - it is not a separate DB
+test and does not belong here.
 
 The goal is quality over quantity. Prefer a few meaningful DB tests over broad, repetitive coverage.
 

@@ -309,6 +309,9 @@ cases belong to a future promotions scenario set, not repeated here.
 **Expected Result:**
 - Response status is 201.
 - `discount_total` is greater than `0`; `promotion_id` is set.
+- A `promotion_usage` row records the order and its discount, and the
+  promotion's `usage_count` goes up by one. Neither is exposed by any
+  endpoint, so this is checked in the database.
 
 ### ORD-018 — Retrying a create request with the same Idempotency-Key replays the original order
 
@@ -327,6 +330,9 @@ order.
 - Both responses are 201 with the identical `order_number`/`id`.
 - The second response carries the `Idempotent-Replay: true` header.
 - Only one order actually exists (confirmed via `GET /orders`).
+- Exactly one inventory transaction exists for it - one order is not the
+  same as one reservation, and a replay that re-ran the stock side
+  effects would still leave a single order behind.
 
 ### ORD-019 — Reusing an Idempotency-Key with a different request body is rejected
 
@@ -543,6 +549,9 @@ of the order's current state.
 **Expected Result:**
 - After cancelling, the product's `reserved_stock` (via `GET /inventory`)
   decreases by the order's quantity, back to its pre-order value.
+- The order's inventory transactions are `RESERVATION` plus `RELEASE`, so
+  the returned stock is traceable to this order rather than just netted
+  out of the total.
 
 ### ORD-034 — Shipping converts the reservation into a sale without changing available_stock
 
@@ -561,6 +570,8 @@ stock was already accounted for as reserved. Verified live: before
 - After shipping, `stock` and `reserved_stock` both decrease by the
   order's quantity; `available_stock` is unchanged from just before
   shipping.
+- The order's inventory transactions are `RESERVATION` plus `SALE` - the
+  numbers alone would also fit a plain adjustment.
 
 ### ORD-035 — Cancelling a paid order refunds the payment
 

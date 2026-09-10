@@ -27,6 +27,7 @@ dependencies = [
 packages = [
     { include = "core" },
     { include = "api" },
+    { include = "db" },
     { include = "utils" },
 ]
 exclude = [

@@ -11,6 +11,7 @@ from faker import Faker
 
 from api.clients.product_client import ProductClient
 from api.models.product import BulkOperationResponse, ProductResponse
+from db.models import Product
 from utils.helpers import assert_error, assert_status_code
 
 pytestmark = allure.feature("Products")
@@ -355,7 +356,7 @@ def test_replacing_category_ids_replaces_the_previous_set(
 @allure.tag("PROD-022")
 @allure.severity(allure.severity_level.BLOCKER)
 def test_soft_deleting_removes_from_listing_and_get(
-    public_products, product_client, new_product
+    public_products, product_client, new_product, db_session
 ):
     product_id = new_product["entity_id"]
     name = new_product["attributes"]["name"]
@@ -365,6 +366,10 @@ def test_soft_deleting_removes_from_listing_and_get(
     assert_status_code(response, 204)
     assert_error(public_products.get_product(product_id), 404, "PRODUCT_NOT_FOUND")
     assert public_products.list_products(search=name).json()["items"] == []
+
+    row = db_session.get(Product, uuid.UUID(product_id))
+    assert row is not None, "The product row was deleted outright, not soft-deleted"
+    assert row.deleted_at is not None
 
 
 @allure.title("Restoring a soft-deleted product succeeds and stays inactive")
@@ -452,7 +457,9 @@ def test_atomic_with_every_id_valid_succeeds(product_client, factory):
 @allure.title("Atomic with any invalid id rolls back everything")
 @allure.tag("PROD-028")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_atomic_with_any_invalid_id_rolls_back_everything(product_client, new_product):
+def test_atomic_with_any_invalid_id_rolls_back_everything(
+    product_client, new_product, db_session
+):
     real_id = new_product["entity_id"]
     unknown_id = str(uuid.uuid4())
 
@@ -463,6 +470,8 @@ def test_atomic_with_any_invalid_id_rolls_back_everything(product_client, new_pr
     error = assert_error(response, 409, "BULK_ROLLED_BACK")
     assert error["details"]["applied"] is False
     assert product_client.get_product(real_id).json()["is_active"] is True
+
+    assert db_session.get(Product, uuid.UUID(real_id)).is_active is True
 
 
 @allure.title("An empty ids list is rejected")

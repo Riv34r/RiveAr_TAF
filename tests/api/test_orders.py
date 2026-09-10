@@ -5,13 +5,16 @@ Implements ORD-001 through ORD-040 from tests/api/scenarios/orders.md.
 
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from decimal import Decimal
 
 import allure
 import pytest
+from sqlalchemy import select
 
 from api.clients.address_client import AddressClient
 from api.clients.order_client import OrderClient
 from api.models.order import OrderResponse, OrderStatusHistoryResponse
+from db.models import InventoryTransaction, Promotion, PromotionUsage
 from utils.helpers import assert_error, assert_paginated_response, assert_status_code
 
 pytestmark = allure.feature("Orders")
@@ -305,13 +308,15 @@ def test_address_not_belonging_to_customer_is_rejected(
 @allure.tag("ORD-017")
 @allure.severity(allure.severity_level.NORMAL)
 def test_valid_promotion_code_applies_a_discount(
-    customer_orders, factory, seed_manifest
+    customer_orders, factory, seed_manifest, db_session
 ):
     promo = next(
         (f for f in seed_manifest["fixtures"] if f["key"] == "valid_promotion"), None
     )
     assert promo is not None, "Seed manifest has no valid_promotion fixture"
     product = factory("product", price="20.00", stock=10)
+    promotion_id = uuid.UUID(promo["entity_id"])
+    used_before = db_session.get(Promotion, promotion_id).usage_count
 
     response = customer_orders.create_order(
         items=[{"product_id": product["entity_id"], "quantity": 1}],
@@ -323,6 +328,14 @@ def test_valid_promotion_code_applies_a_discount(
     assert float(body["discount_total"]) > 0
     assert body["promotion_id"] == str(promo["entity_id"])
 
+    db_session.expire_all()
+    usage = db_session.execute(
+        select(PromotionUsage).where(PromotionUsage.order_id == uuid.UUID(body["id"]))
+    ).scalar_one()
+    assert usage.promotion_id == promotion_id
+    assert usage.discount_amount == Decimal(body["discount_total"])
+    assert db_session.get(Promotion, promotion_id).usage_count == used_before + 1
+
 
 @allure.title(
     "Retrying a create request with the same Idempotency-Key replays the original order"
@@ -330,7 +343,7 @@ def test_valid_promotion_code_applies_a_discount(
 @allure.tag("ORD-018")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_retrying_with_the_same_idempotency_key_replays_the_original_order(
-    customer_orders, new_product, idempotency_key
+    customer_orders, new_product, idempotency_key, db_session, count_rows
 ):
     key = idempotency_key
     items = [{"product_id": new_product["entity_id"], "quantity": 1}]
@@ -346,6 +359,9 @@ def test_retrying_with_the_same_idempotency_key_replays_the_original_order(
 
     listing = customer_orders.list_orders(search=order_number)
     assert listing.json()["pagination"]["total"] == 1
+
+    order_id = uuid.UUID(first.json()["id"])
+    assert count_rows(InventoryTransaction.order_id == order_id) == 1
 
 
 @allure.title("Reusing an Idempotency-Key with a different request body is rejected")
@@ -567,7 +583,7 @@ def test_customer_attempting_a_non_cancel_transition_gets_403(
 @allure.tag("ORD-033")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_cancelling_releases_the_reserved_stock(
-    customer_orders, factory, inventory_for
+    customer_orders, factory, inventory_for, db_session
 ):
     product = factory("product")
     before = inventory_for(product["attributes"]["sku"])
@@ -584,6 +600,17 @@ def test_cancelling_releases_the_reserved_stock(
     after = inventory_for(product["attributes"]["sku"])
     assert after["reserved_stock"] == before["reserved_stock"]
 
+    types = (
+        db_session.execute(
+            select(InventoryTransaction.type).where(
+                InventoryTransaction.order_id == uuid.UUID(order_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert sorted(types) == ["RELEASE", "RESERVATION"]
+
 
 @allure.title(
     "Shipping converts the reservation into a sale without changing available_stock"
@@ -591,7 +618,7 @@ def test_cancelling_releases_the_reserved_stock(
 @allure.tag("ORD-034")
 @allure.severity(allure.severity_level.CRITICAL)
 def test_shipping_converts_the_reservation_into_a_sale(
-    order_client, customer_orders, factory, inventory_for
+    order_client, customer_orders, factory, inventory_for, db_session
 ):
     product = factory("product")
     created = customer_orders.create_order(
@@ -608,6 +635,17 @@ def test_shipping_converts_the_reservation_into_a_sale(
     assert after["stock"] == before["stock"] - 1
     assert after["reserved_stock"] == before["reserved_stock"] - 1
     assert after["available_stock"] == before["available_stock"]
+
+    types = (
+        db_session.execute(
+            select(InventoryTransaction.type).where(
+                InventoryTransaction.order_id == uuid.UUID(order_id)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    assert sorted(types) == ["RESERVATION", "SALE"]
 
 
 @allure.title("Cancelling a paid order refunds the payment")
