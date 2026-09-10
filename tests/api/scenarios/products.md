@@ -364,6 +364,9 @@ is cleared and rebuilt from `category_ids`, not merged.
 - Response status is 204.
 - A subsequent public `GET /products/{id}` returns 404.
 - The product's ID is absent from an unfiltered `GET /products`.
+- The row is still in `products` with `deleted_at` set - a 404 looks the
+  same either way, so only the database distinguishes a soft delete from
+  a real one.
 
 ### PROD-023 — Restoring a soft-deleted product succeeds and stays inactive
 
@@ -473,7 +476,8 @@ batch as a bad id must NOT change, unlike PROD-026.
 - `error.details.applied` is `false`; `details.results` names both ids
   and their per-item outcome.
 - The real product's state is unchanged from before the request (confirm
-  via a follow-up GET).
+  via a follow-up GET, and by reading the row directly - asking the API
+  whether its own rollback worked is circular).
 
 ### PROD-029 — an empty ids list is rejected
 

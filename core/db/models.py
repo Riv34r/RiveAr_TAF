@@ -7,6 +7,7 @@ exercise its constraints.
 """
 
 import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import Computed, Numeric
@@ -33,6 +34,44 @@ class InventoryTransaction(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
     inventory_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    order_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    # VARCHAR + CHECK in the SUT (native_enum=False), so a plain str maps it.
+    type: Mapped[str]
+    quantity_change: Mapped[int]
+
+
+class Product(Base):
+    __tablename__ = "products"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    is_active: Mapped[bool]
+    deleted_at: Mapped[datetime | None]
+
+
+class Promotion(Base):
+    __tablename__ = "promotions"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    code: Mapped[str]
+    usage_count: Mapped[int]
+
+
+class PromotionUsage(Base):
+    __tablename__ = "promotion_usage"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    promotion_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    discount_amount: Mapped[Decimal] = mapped_column(Numeric(10, 2))
+
+
+class OrderStatusHistory(Base):
+    __tablename__ = "order_status_history"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    order_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
+    from_status: Mapped[str | None]
+    to_status: Mapped[str]
 
 
 class Order(Base):
