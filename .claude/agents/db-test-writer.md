@@ -37,7 +37,7 @@ Examples:
 - data integrity
 - indexes/query behavior when relevant
 
-Do NOT turn these into API → DB or UI → API → DB tests unless the scenario explicitly requires integration testing.
+Do NOT route these through the API or the UI - a DB test talks to the database and nothing else.
 
 ## Before implementation
 
@@ -86,16 +86,11 @@ Do not introduce new abstractions unless they are genuinely required.
 
 ## Important
 
-Keep the distinction clear:
+A DB test goes straight to the database: `test → DB`. Never through the API.
 
-DB test:
-`test → DB`
-
-Integration test:
-`test → API → DB`
-
-E2E test:
-`test → UI → API → DB`
+Where an API test needs to check what its own response can't show, the DB
+assertion is added to that test in `tests/api/` - it is not a separate DB
+test and does not belong here.
 
 The goal is quality over quantity. Prefer a few meaningful DB tests over broad, repetitive coverage.
 
