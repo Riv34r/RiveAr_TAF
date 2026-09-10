@@ -1,8 +1,22 @@
 """Shared helper functions."""
 
+import logging
+from contextlib import contextmanager
+
+import allure
 from sqlalchemy.exc import IntegrityError
 
 from api.models.auth import TokenResponse
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def step(title: str):
+    """Name what a block of a test does - shown in Allure and in the log."""
+    logger.info("STEP: %s", title)
+    with allure.step(title):
+        yield
 
 
 def seeded_account(manifest: dict, role: str) -> dict:

@@ -118,6 +118,11 @@ Example:
 - Response matches the expected schema.
 - Product is created successfully.
 
+The implementing agent turns a scenario into a test whose body is a sequence
+of named steps, one per phase. Write preconditions and expected results as
+observable outcomes in domain terms, each standing on its own as a sentence -
+they become those step titles.
+
 # Output
 
 Organize scenarios by API domain:
