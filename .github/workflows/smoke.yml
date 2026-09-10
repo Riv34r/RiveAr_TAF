@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   smoke:
-    uses: ./.github/workflows/api-tests.yml
+    uses: ./.github/workflows/tests.yml
     with:
       run_label: Smoke
-      pytest_args: tests/api -m smoke
+      api_args: -m smoke

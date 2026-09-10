@@ -58,6 +58,21 @@ pytest tests/db
 allure serve reports/allure_results
 ```
 
+## CI
+
+GitHub Actions boots the SUT from source (Postgres + backend via its own
+`docker-compose.yml`, migrated and seeded) and runs the suites against it -
+see [.github/workflows/tests.yml](.github/workflows/tests.yml).
+
+| Workflow | Trigger | Runs |
+|----------|---------|------|
+| Smoke | push/PR to `main`, or manually | API `-m smoke` + the whole DB suite |
+| Regression | daily 03:00 UTC, or manually | the whole API suite (`-n 4`) + the whole DB suite |
+
+Both share one SUT boot - it costs minutes, the tests cost seconds. Each run
+writes a per-suite job summary and uploads the Allure/JUnit reports as a
+build artifact.
+
 ## Fixtures
 
 | Fixture         | Scope    | Purpose                                          |
