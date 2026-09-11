@@ -21,7 +21,7 @@ Focus on:
 - separation of concerns
 - appropriate abstractions
 - Python and pytest practices
-- API testing practices
+- API, UI (Playwright) and database testing practices
 
 Look for:
 
@@ -34,10 +34,12 @@ Look for:
 - weak assertions
 - unnecessary fixtures
 - maintainability issues
+- departures from the framework's own conventions
 
 # Principles
 
 - Inspect existing framework patterns before making recommendations.
+- Review against the conventions written down in `.claude/agents/api-test-writer.md`, `db-test-writer.md` and `ui-test-writer.md` - named steps, scenario IDs, locator order, when an API test checks the database - rather than general preference.
 - Consider the current maturity of the framework.
 - Prioritize real problems over stylistic preferences.
 - Do not recommend abstractions without a practical reason.
