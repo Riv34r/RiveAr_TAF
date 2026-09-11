@@ -7,9 +7,48 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+from api.clients.auth_client import AuthClient
+from core.api.api_client import ApiClient
 from core.db.session import build_dsn
+from utils.helpers import seeded_account
 
 load_dotenv(override=False)
+
+
+@pytest.fixture(scope="session")
+def api_url() -> str:
+    """Base URL + version prefix, read from the environment."""
+    host = os.environ["BASE_URL"].rstrip("/")
+    prefix = os.environ["API_PREFIX"].strip("/")
+    return f"{host}/{prefix}"
+
+
+@pytest.fixture(scope="session")
+def api(api_url) -> ApiClient:
+    """An unauthenticated ApiClient pointed at the SUT."""
+    return ApiClient(api_url)
+
+
+@pytest.fixture(scope="session")
+def auth_client(api) -> AuthClient:
+    """AuthClient wrapping api, for /auth/* operations."""
+    return AuthClient(api)
+
+
+@pytest.fixture(scope="session")
+def seed_manifest(api) -> dict:
+    """The seeded accounts and their real password, from the SUT itself."""
+    response = api.get("/test/seed-manifest")
+    assert (
+        response.status_code == 200
+    ), f"Could not read the seed manifest: {response.status_code} {response.text}"
+    return response.json()
+
+
+@pytest.fixture(scope="session")
+def customer(seed_manifest) -> dict:
+    """The seeded CUSTOMER account (email, role, ...)."""
+    return seeded_account(seed_manifest, "CUSTOMER")
 
 
 @pytest.fixture(scope="session")

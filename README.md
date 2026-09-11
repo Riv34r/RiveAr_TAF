@@ -13,14 +13,14 @@ else is built incrementally on top of this - see [Roadmap](#roadmap).
 
 ## Structure
 
-The framework is organized by layer. API and DB exist today; UI gets its
-own `core/ui/`, `ui/`, and `tests/ui/` the same way once it starts (see
-[Roadmap](#roadmap)) - no empty scaffolding for layers that don't have
-code yet.
+The framework is organized by layer - no empty scaffolding for layers that
+don't have code yet.
 
 - `core/` - framework-wide building blocks, one subpackage per layer:
   - `core/api/` - `ApiClient`, the one place that knows how to reach the API
   - `core/db/` - the SQLAlchemy connection setup for the SUT's Postgres
+  - there is no `core/ui/`: Playwright's own `page` fixture already is the
+    SUT-agnostic driver, so nothing generic was left to put there
 - `api/` - everything specific to testing the HTTP API:
   - `api/clients/` - domain clients built on `core.api.api_client.ApiClient`
     (`AuthClient`, `AdminClient`, ...)
@@ -28,20 +28,31 @@ code yet.
 - `db/` - everything specific to the SUT's database:
   - `db/models.py` - ORM models mirroring its tables, declared here rather
     than imported from the SUT
-- `utils/` - shared assertion helpers (`assert_status_code`, `assert_error`, ...)
+- `utils/` - shared assertion and reporting helpers (`assert_status_code`,
+  `assert_error`, `step`, ...)
 - `tests/` - test suites, split the same way:
+  - `tests/conftest.py` - fixtures more than one suite needs
   - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
-  - `tests/db/` - DB test suites and `conftest.py`
+  - `tests/db/` - DB test suites
+  - `tests/ui/` - UI `conftest.py` and `tests/ui/scenarios/`; the suites and a
+    top-level `ui/` for page objects arrive with the first implemented test
+
+Page objects expose locators and actions; assertions stay in the test - the
+same split as API clients returning responses that `utils` asserts on.
+Locators prefer role and label over `data-testid` - see
+[.claude/agents/ui-test-writer.md](.claude/agents/ui-test-writer.md) for the order.
 
 ## Setup
 
 ```bash
 pip install -r requirements.txt
+playwright install chromium
 cp .env.example .env
 ```
 
 Requires the RiveAr stack running locally (`docker compose up` in the RiveAr
-repo) with test-support routes enabled (any non-production `APP_ENV`).
+repo) with test-support routes enabled (any non-production `APP_ENV`). The UI
+suite drives the front end the same stack serves on port 5173.
 
 ## Running
 
@@ -50,6 +61,15 @@ pytest
 pytest -m smoke
 pytest tests/api
 pytest tests/db
+pytest tests/ui
+```
+
+UI runs headless by default. To watch one, or to keep an artifact of a
+failure:
+
+```bash
+pytest tests/ui --headed --slowmo 300
+pytest tests/ui --screenshot only-on-failure --tracing retain-on-failure
 ```
 
 ```bash
@@ -83,6 +103,9 @@ build artifact.
 | `admin_client`  | session  | `ApiClient` authenticated as the seeded ADMIN    |
 | `run_id`        | function | Unique tag for one test's disposable entities    |
 | `factory`       | function | Creates disposable entities, cleaned up after    |
+| `base_url`      | session  | The front end's URL, from `.env`                 |
+| `customer_tokens` | session | A token pair for the seeded CUSTOMER, over the API |
+| `sign_in`       | function | Hands the browser a session, skipping the login form |
 
 ## Test coverage
 
