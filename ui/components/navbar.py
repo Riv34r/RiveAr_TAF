@@ -3,8 +3,6 @@
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from core.ui.base_page import BasePage
-
 
 class Navbar:
     def __init__(self, page: Page):
@@ -13,15 +11,30 @@ class Navbar:
         bar = page.get_by_role("banner")
         self.login_link = bar.get_by_role("link", name="Log in")
         self.account_menu_button = bar.get_by_role("button", name="Open account menu")
+        self.order_history_item = page.get_by_role("menuitem", name="Order history")
         self.logout_item = page.get_by_role("menuitem", name="Log out")
 
-    def logout(self, lands_on: type[BasePage]):
-        """Log out from the account menu; returns the page it lands on."""
+    def open_account_menu(self):
+        """Open the account menu, which only a signed-in user has."""
         try:
             self.account_menu_button.click()
         except PlaywrightTimeoutError:
             raise RuntimeError(
-                "Can't log out: no one is signed in - the navbar has no account menu"
+                "No account menu: no one is signed in - the navbar shows none"
             ) from None
+
+    def open_order_history(self):
+        """Go to the order history from the account menu."""
+        from ui.pages.order_history_page import OrderHistoryPage
+
+        self.open_account_menu()
+        self.order_history_item.click()
+        return OrderHistoryPage(self.page)
+
+    def logout(self):
+        """Log out from the account menu; it lands on the storefront home."""
+        from ui.pages.home_page import HomePage
+
+        self.open_account_menu()
         self.logout_item.click()
-        return lands_on(self.page)
+        return HomePage(self.page)

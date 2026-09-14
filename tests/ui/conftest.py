@@ -6,6 +6,7 @@ from string import Template
 
 import pytest
 
+from ui.pages.home_page import HomePage
 from ui.pages.login_page import LoginPage
 from ui.pages.order_history_page import OrderHistoryPage
 from utils.helpers import assert_status_code
@@ -65,6 +66,12 @@ def customer_tokens(auth_client, customer) -> dict:
     response = auth_client.login(customer["email"], customer["password"])
     assert_status_code(response, 200)
     return response.json()
+
+
+@pytest.fixture
+def home_page(page) -> HomePage:
+    """The storefront home, opened in this test's page."""
+    return HomePage(page).open()
 
 
 @pytest.fixture

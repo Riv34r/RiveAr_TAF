@@ -7,7 +7,6 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
-from ui.pages.home_page import HomePage
 from ui.pages.login_page import LoginPage
 from ui.pages.order_details_page import OrderDetailsPage
 from utils.helpers import step
@@ -39,6 +38,11 @@ def stored_tokens(page) -> list:
         "['rivear_access_token', 'rivear_refresh_token']"
         ".map(key => localStorage.getItem(key))"
     )
+
+
+def replace_access_token(page, token: str):
+    """Swap the access token the front end holds, as a lapsed one would leave it."""
+    page.evaluate("token => localStorage.setItem('rivear_access_token', token)", token)
 
 
 @allure.title(
@@ -152,7 +156,7 @@ def test_session_handed_to_the_browser_opens_a_protected_route(
 @allure.severity(allure.severity_level.CRITICAL)
 def test_logging_out_ends_the_session_in_the_browser(customer_page, order_history_page):
     with step("Log out from the account menu"):
-        home_page = order_history_page.navbar.logout(lands_on=HomePage)
+        home_page = order_history_page.navbar.logout()
 
     with step("The storefront home opens with the customer signed out"):
         expect(home_page.page).to_have_url(home_page.path)
@@ -175,3 +179,30 @@ def test_rejected_stored_session_is_treated_as_signed_out(
 
     with step("Neither token is left in the browser"):
         assert stored_tokens(order_history_page.page) == [None, None]
+
+
+@allure.title(
+    "An access token that lapses mid-visit is renewed "
+    "without interrupting the customer"
+)
+@allure.tag("UI-LOGIN-08")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_access_token_lapsing_mid_visit_is_renewed(
+    customer_page, home_page, customer_tokens, expired_access_token
+):
+    with step("The customer is signed in on the storefront home"):
+        expect_signed_in(home_page.navbar)
+
+    with step("The access token lapses mid-visit"):
+        replace_access_token(home_page.page, expired_access_token)
+
+    with step("Go to the order history from the account menu"):
+        order_history_page = home_page.navbar.open_order_history()
+
+    with step("The order history is listed, without being sent to log in"):
+        expect(order_history_page.orders.first).to_be_visible()
+        expect(order_history_page.page).to_have_url(order_history_page.path)
+
+    with step("The session was renewed with a new refresh token"):
+        _, refresh_token = stored_tokens(order_history_page.page)
+        assert refresh_token not in (None, customer_tokens["refresh_token"])
