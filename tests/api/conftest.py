@@ -17,7 +17,7 @@ from utils.helpers import seeded_account
 def admin_session(api_url, auth_client, seed_manifest) -> ApiClient:
     """An ApiClient authenticated as the seeded ADMIN, shared by domain clients."""
     admin = seeded_account(seed_manifest, "ADMIN")
-    response = auth_client.login(admin["email"], seed_manifest["password"])
+    response = auth_client.login(admin["email"], admin["password"])
     assert (
         response.status_code == 200
     ), f"Could not authenticate as admin: {response.status_code} {response.text}"

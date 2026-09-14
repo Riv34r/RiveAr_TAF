@@ -48,11 +48,9 @@ def disabled_customer(admin_client, factory):
 @allure.title("GET /auth/me response matches the UserResponse schema")
 @allure.tag("AUTH-001")
 @allure.severity(allure.severity_level.NORMAL)
-def test_current_user_response_matches_schema(auth_client, customer, seed_manifest):
+def test_current_user_response_matches_schema(auth_client, customer):
     with step("Log in as the seeded customer"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
 
     with step("Ask who we are"):
         response = auth_client.get_current_user(token_pair["access_token"])
@@ -157,7 +155,7 @@ def test_register_missing_required_field_returns_422(auth_client, missing_field)
 @allure.severity(allure.severity_level.BLOCKER)
 @pytest.mark.smoke
 def test_login_with_valid_credentials_returns_a_token_pair(
-    auth_client, admin_client, customer, seed_manifest
+    auth_client, admin_client, customer
 ):
     # last_login_at is a server timestamp - compare it against its own
     # previous value rather than the test runner's clock.
@@ -166,7 +164,7 @@ def test_login_with_valid_credentials_returns_a_token_pair(
         last_login_before = before["last_login_at"]
 
     with step("Log in"):
-        response = auth_client.login(customer["email"], seed_manifest["password"])
+        response = auth_client.login(customer["email"], customer["password"])
 
     with step("A valid token pair comes back"):
         assert_status_code(response, 200)
@@ -192,13 +190,9 @@ def test_login_with_wrong_password_returns_401(auth_client, customer):
 @allure.title("An unknown email is indistinguishable from a wrong password")
 @allure.tag("AUTH-009")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_unknown_email_is_indistinguishable_from_wrong_password(
-    auth_client, customer, seed_manifest
-):
+def test_unknown_email_is_indistinguishable_from_wrong_password(auth_client, customer):
     with step("Log in with an email nobody has registered"):
-        unknown_email = auth_client.login(
-            fake.unique.email(), seed_manifest["password"]
-        )
+        unknown_email = auth_client.login(fake.unique.email(), customer["password"])
 
     with step("Log in to a real account with the wrong password"):
         wrong_password = auth_client.login(customer["email"], "WrongPassword123!")
@@ -251,11 +245,9 @@ def test_malformed_login_request_returns_422(api, payload):
 @allure.title("A valid refresh token rotates into a new token pair")
 @allure.tag("AUTH-012")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_refresh_rotates_into_a_new_token_pair(auth_client, customer, seed_manifest):
+def test_refresh_rotates_into_a_new_token_pair(auth_client, customer):
     with step("Log in, holding a refresh token"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
 
     with step("Refresh with it"):
         response = auth_client.refresh(token_pair["refresh_token"])
@@ -270,13 +262,9 @@ def test_refresh_rotates_into_a_new_token_pair(auth_client, customer, seed_manif
 @allure.title("A refresh token cannot be reused after rotation")
 @allure.tag("AUTH-013")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_refresh_token_cannot_be_reused_after_rotation(
-    auth_client, customer, seed_manifest
-):
+def test_refresh_token_cannot_be_reused_after_rotation(auth_client, customer):
     with step("Log in and refresh once"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
         first_refresh = auth_client.refresh(token_pair["refresh_token"])
         assert_status_code(first_refresh, 200)
 
@@ -334,11 +322,9 @@ def test_refresh_as_a_since_disabled_user_returns_401(
 @allure.title("Logging out revokes the refresh token")
 @allure.tag("AUTH-017")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_logout_revokes_the_refresh_token(auth_client, customer, seed_manifest):
+def test_logout_revokes_the_refresh_token(auth_client, customer):
     with step("Log in, holding a refresh token"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
 
     with step("Log out"):
         response = auth_client.logout(token_pair["refresh_token"])
@@ -352,13 +338,9 @@ def test_logout_revokes_the_refresh_token(auth_client, customer, seed_manifest):
 @allure.title("Logging out an already-revoked token is idempotent")
 @allure.tag("AUTH-018")
 @allure.severity(allure.severity_level.NORMAL)
-def test_logout_is_idempotent_for_an_already_revoked_token(
-    auth_client, customer, seed_manifest
-):
+def test_logout_is_idempotent_for_an_already_revoked_token(auth_client, customer):
     with step("Log in and log out"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
         auth_client.logout(token_pair["refresh_token"])
 
     with step("Log out a second time with the same token"):
@@ -398,11 +380,9 @@ def test_malformed_refresh_token_on_logout_returns_401(auth_client):
 @allure.title("A valid access token returns the caller's identity")
 @allure.tag("AUTH-020")
 @allure.severity(allure.severity_level.CRITICAL)
-def test_valid_access_token_returns_identity(auth_client, customer, seed_manifest):
+def test_valid_access_token_returns_identity(auth_client, customer):
     with step("Log in as the seeded customer"):
-        token_pair = auth_client.login(
-            customer["email"], seed_manifest["password"]
-        ).json()
+        token_pair = auth_client.login(customer["email"], customer["password"]).json()
 
     with step("Ask who we are"):
         response = auth_client.get_current_user(token_pair["access_token"])

@@ -47,7 +47,7 @@ def seed_manifest(api) -> dict:
 
 @pytest.fixture(scope="session")
 def customer(seed_manifest) -> dict:
-    """The seeded CUSTOMER account (email, role, ...)."""
+    """The seeded CUSTOMER account (email, role, password, ...)."""
     return seeded_account(seed_manifest, "CUSTOMER")
 
 
