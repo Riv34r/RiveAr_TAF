@@ -56,7 +56,8 @@ Reuse existing abstractions instead of creating duplicates.
 - Page Objects: ui/pages/, one module per screen.
 - Component wrappers: ui/components/, for components that appear on more than one screen.
 - Tests: tests/ui/test_*.py. UI fixtures live in tests/ui/conftest.py; fixtures another suite also needs live in tests/conftest.py.
-- There is no core/ui/ - Playwright's page fixture already is the generic driver. Do not create one.
+- Every Page Object inherits BasePage from core/ui/base_page.py: it sets `path` and gets `page` and `open()`. Keep core/ui free of anything specific to RiveAr.
+- A component (the navbar) is composed into the Page Objects of the screens it appears on - the login screen has no navbar, the storefront home does.
 - Create ui/, ui/pages/ or ui/components/ only together with the first file that goes in it, and add ui to the packages list in pyproject.toml at the same time.
 
 Follow the Allure pattern of the existing suites - read one in tests/api/ before writing:
@@ -121,17 +122,15 @@ Use Page Objects for page-level behavior and component wrappers for reusable UI 
 
 Example:
 
-class LoginPage:
-    def __init__(self, page):
-        self.page = page
-        self.form = page.get_by_test_id("login-form")
-        self.email = self.form.get_by_label("Email")
-        self.password = self.form.get_by_role("textbox", name="Password")
-        self.login_button = self.form.get_by_role("button", name="Log in")
-        self.error = self.form.get_by_role("alert")
+class LoginPage(BasePage):
+    path = "/login"
 
-    def open(self):
-        self.page.goto("/login")
+    def __init__(self, page):
+        super().__init__(page)
+        form = page.get_by_test_id("login-form")
+        self.email = form.get_by_role("textbox", name="Email")
+        self.password = form.get_by_role("textbox", name="Password")
+        self.login_button = form.get_by_role("button", name="Log in")
 
     def login(self, email: str, password: str):
         self.email.fill(email)
@@ -155,7 +154,7 @@ def test_valid_credentials_sign_the_customer_in(login_page, base_url, customer):
     with step("The storefront opens"):
         expect(login_page.page).to_have_url(f"{base_url}/")
 
-Every Page Object reaches a test through a function-scoped fixture in tests/ui/conftest.py, named after its screen (login_page, cart_page) - tests never construct one themselves. Every Page Object fixture is built on the one page fixture, and never navigates. Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
+Every Page Object reaches a test through a function-scoped fixture in tests/ui/conftest.py, named after its screen (login_page, cart_page), or is returned by the action that leads to that screen - login_page.login(account) returns HomePage, while login(account, expected_errors=True) returns nothing for a login the test expects to fail - tests never construct one themselves. Every Page Object fixture is built on the one page fixture, and never navigates. Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
 
 Create wrappers when they:
 - remove meaningful duplication
