@@ -124,7 +124,9 @@ and page objects reaching tests through fixtures named after their screen
 (`login_page`, which opens `/login`); a page the test reaches afterwards comes
 from the action that leads there - `login_page.login(customer)` returns the
 `HomePage`. Components such as the navbar are reached through
-the page they're on - `home_page.navbar`.
+the page they're on - `home_page.navbar`. A test for the signed-in customer
+also requests `customer_page`: its browser context then starts with the
+customer's tokens, from `data/session_state.json`.
 
 ## Test coverage
 
@@ -143,7 +145,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_login.py` | UI-LOGIN-01..04 | Login form, validation, return to the page asked for |
+| `tests/ui/test_login.py` | UI-LOGIN-01..06 | Login form, validation, return to the page asked for, a session handed to the browser, logout |
 
 ## Defects found
 

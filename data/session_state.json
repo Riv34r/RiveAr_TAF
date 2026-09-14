@@ -1,0 +1,12 @@
+{
+  "cookies": [],
+  "origins": [
+    {
+      "origin": "$origin",
+      "localStorage": [
+        {"name": "rivear_access_token", "value": "$access_token"},
+        {"name": "rivear_refresh_token", "value": "$refresh_token"}
+      ]
+    }
+  ]
+}

@@ -7,6 +7,8 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
+from ui.pages.home_page import HomePage
+from ui.pages.login_page import LoginPage
 from ui.pages.order_details_page import OrderDetailsPage
 from utils.helpers import step
 
@@ -121,3 +123,34 @@ def test_anonymous_visitor_is_brought_back_after_logging_in(
         expect(order_details_page.order_number).to_have_text(
             customer_order.order_number
         )
+
+
+@allure.title("A session handed to the browser opens a protected route directly")
+@allure.tag("UI-LOGIN-05")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_session_handed_to_the_browser_opens_a_protected_route(
+    customer_page, order_history_page
+):
+    with step("The customer's order history is listed, with the customer signed in"):
+        expect(order_history_page.orders.first).to_be_visible()
+        expect_signed_in(order_history_page.navbar)
+
+    with step("The customer was not sent to log in"):
+        expect(order_history_page.page).to_have_url(order_history_page.path)
+
+
+@allure.title("Logging out ends the session in the browser")
+@allure.tag("UI-LOGIN-06")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_logging_out_ends_the_session_in_the_browser(customer_page, order_history_page):
+    with step("Log out from the account menu"):
+        home_page = order_history_page.navbar.logout(lands_on=HomePage)
+
+    with step("The storefront home opens with the customer signed out"):
+        expect(home_page.page).to_have_url(home_page.path)
+        expect(home_page.navbar.login_link).to_be_visible()
+        expect(home_page.navbar.account_menu_button).to_be_hidden()
+
+    with step("Opening the order history again asks to log in"):
+        order_history_page.open()
+        expect(order_history_page.page).to_have_url(LoginPage.path)
