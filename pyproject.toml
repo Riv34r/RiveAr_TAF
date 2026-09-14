@@ -30,6 +30,7 @@ packages = [
     { include = "core" },
     { include = "api" },
     { include = "db" },
+    { include = "ui" },
     { include = "utils" },
 ]
 exclude = [
