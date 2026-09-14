@@ -9,7 +9,7 @@ from playwright.sync_api import expect
 
 from ui.pages.login_page import LoginPage
 from ui.pages.order_details_page import OrderDetailsPage
-from utils.helpers import step
+from utils.helpers import assert_status_code, step
 
 pytestmark = allure.feature("UI: Login")
 
@@ -228,3 +228,23 @@ def test_session_that_cannot_be_renewed_mid_visit_sends_to_log_in(
 
     with step("Neither token is left in the browser"):
         assert stored_tokens(home_page.page) == [None, None]
+
+
+@allure.title(
+    "A reload after the access token lapses signs the customer out, "
+    "even with a renewable session"
+)
+@allure.tag("UI-LOGIN-10")
+@allure.severity(allure.severity_level.NORMAL)
+def test_lapsed_access_token_signs_the_customer_out_on_load(
+    lapsed_session_page, order_history_page, auth_client, customer_tokens
+):
+    # TODO: flip to "stays signed in" once BUG-005 is fixed
+    with step("The order history sends the customer to log in"):
+        expect(order_history_page.page).to_have_url(LoginPage.path)
+
+    with step("Neither token is left in the browser"):
+        assert stored_tokens(order_history_page.page) == [None, None]
+
+    with step("The refresh token was never tried - the API still honours it"):
+        assert_status_code(auth_client.refresh(customer_tokens["refresh_token"]), 200)
