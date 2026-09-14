@@ -15,5 +15,5 @@ def base_url() -> str:
 
 @pytest.fixture
 def login_page(page) -> LoginPage:
-    """The login screen, bound to this test's page."""
-    return LoginPage(page)
+    """The login screen, opened in this test's page."""
+    return LoginPage(page).open()

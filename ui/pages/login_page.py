@@ -6,21 +6,27 @@ from core.ui.base_page import BasePage
 from ui.pages.home_page import HomePage
 
 
+class LoginForm:
+    def __init__(self, page: Page):
+        form = page.get_by_test_id("login-form")
+        self.email = form.get_by_role("textbox", name="Email")
+        self.password = form.get_by_role("textbox", name="Password")
+        self.login_button = form.get_by_role("button", name="Log in")
+        self.errors = form.get_by_role("alert").or_(
+            form.locator("[id$='-helper-text']")
+        )
+
+
 class LoginPage(BasePage):
     path = "/login"
 
     def __init__(self, page: Page):
         super().__init__(page)
-        form = page.get_by_test_id("login-form")
-        self.email = form.get_by_role("textbox", name="Email")
-        self.password = form.get_by_role("textbox", name="Password")
-        self.login_button = form.get_by_role("button", name="Log in")
+        self.form = LoginForm(page)
 
-    def login(self, account: dict, expected_errors: bool = False) -> HomePage | None:
-        """Log in with the account; returns the home unless errors are expected."""
-        self.email.fill(account["email"])
-        self.password.fill(account["password"])
-        self.login_button.click()
-        if expected_errors:
-            return None
+    def login(self, account: dict) -> HomePage:
+        """Log in; returns the home, where a login from /login lands on success."""
+        self.form.email.fill(account["email"])
+        self.form.password.fill(account["password"])
+        self.form.login_button.click()
         return HomePage(self.page)

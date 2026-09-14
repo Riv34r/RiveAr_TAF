@@ -31,7 +31,9 @@ don't have code yet.
     than imported from the SUT
 - `ui/` - everything specific to driving the SUT's front end:
   - `ui/pages/` - page objects, one per screen
-  - `ui/components/` - objects for components on more than one screen
+  - `ui/components/` - objects for components on more than one screen (the
+    navbar); a part only one screen has, like the login form, lives in that
+    screen's module
 - `utils/` - shared assertion and reporting helpers (`assert_status_code`,
   `assert_error`, `step`, ...)
 - `tests/` - test suites, split the same way:
@@ -118,10 +120,10 @@ API suite - `tests/api/conftest.py`:
 
 UI suite - `tests/ui/conftest.py`: `base_url`, the front end's URL from `.env`,
 and page objects reaching tests through fixtures named after their screen
-(`login_page`) - or returned by the action that leads to them, like
-`login_page.login(customer)` returning the `HomePage` when the login is
-expected to succeed. Components such as the
-navbar are reached through the page they're on - `home_page.navbar`.
+(`login_page`, which opens `/login`); a page the test reaches afterwards comes
+from the action that leads there - `login_page.login(customer)` returns the
+`HomePage`. Components such as the navbar are reached through
+the page they're on - `home_page.navbar`.
 
 ## Test coverage
 

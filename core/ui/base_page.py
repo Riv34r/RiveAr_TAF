@@ -11,3 +11,4 @@ class BasePage:
 
     def open(self):
         self.page.goto(self.path)
+        return self
