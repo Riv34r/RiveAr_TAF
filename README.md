@@ -20,8 +20,8 @@ don't have code yet.
 - `core/` - framework-wide building blocks, one subpackage per layer:
   - `core/api/` - `ApiClient`, the one place that knows how to reach the API
   - `core/db/` - the SQLAlchemy connection setup for the SUT's Postgres
-  - there is no `core/ui/`: Playwright's own `page` fixture already is the
-    SUT-agnostic driver, so nothing generic was left to put there
+  - `core/ui/` - `BasePage`, what every page object builds on: its page, its
+    path, and `open()`
 - `api/` - everything specific to testing the HTTP API:
   - `api/clients/` - domain clients built on `core.api.api_client.ApiClient`
     (`AuthClient`, `AdminClient`, ...)
@@ -34,9 +34,6 @@ don't have code yet.
   - `ui/components/` - objects for components on more than one screen
 - `utils/` - shared assertion and reporting helpers (`assert_status_code`,
   `assert_error`, `step`, ...)
-- `data/` - static files the suites load, e.g. `session_state.json`: the
-  browser storage a signed-in UI test starts with, its origin and tokens
-  filled in at runtime
 - `tests/` - test suites, split the same way:
   - `tests/conftest.py` - fixtures more than one suite needs
   - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
@@ -119,15 +116,12 @@ API suite - `tests/api/conftest.py`:
 | `run_id` | function | Unique tag for one test's disposable entities |
 | `factory` | function | Creates disposable entities, cleaned up after |
 
-UI suite - `tests/ui/conftest.py`: a test for a visitor who hasn't logged in
-uses `page`; one for the seeded customer uses `customer_page`. Both are the
-same browser page, so page objects built on `page` work with either -
-`customer_page` only makes the browser context start with the customer's
-session in storage, filled in from `data/session_state.json`. Any other
-session a test needs (`lapsed_session_page`, ...) follows the same pattern: a
-fixture for its tokens, a `<kind>_page` fixture, and an entry in `SESSIONS`.
-Page objects reach tests through fixtures named after their screen
-(`login_page`, `order_history_page`).
+UI suite - `tests/ui/conftest.py`: `base_url`, the front end's URL from `.env`,
+and page objects reaching tests through fixtures named after their screen
+(`login_page`) - or returned by the action that leads to them, like
+`login_page.login(customer)` returning the `HomePage` when the login is
+expected to succeed. Components such as the
+navbar are reached through the page they're on - `home_page.navbar`.
 
 ## Test coverage
 
@@ -146,7 +140,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_login.py` | UI-LOGIN-01..10 | Login form, protected routes, session lifecycle |
+| `tests/ui/test_login.py` | UI-LOGIN-01 | Logging in through the form |
 
 ## Defects found
 
