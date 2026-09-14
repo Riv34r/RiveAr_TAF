@@ -206,3 +206,25 @@ def test_access_token_lapsing_mid_visit_is_renewed(
     with step("The session was renewed with a new refresh token"):
         _, refresh_token = stored_tokens(order_history_page.page)
         assert refresh_token not in (None, customer_tokens["refresh_token"])
+
+
+@allure.title("A session that cannot be renewed mid-visit sends the customer to log in")
+@allure.tag("UI-LOGIN-09")
+@allure.severity(allure.severity_level.NORMAL)
+def test_session_that_cannot_be_renewed_mid_visit_sends_to_log_in(
+    unrenewable_session_page, home_page, expired_access_token
+):
+    with step("The customer is signed in on the storefront home"):
+        expect_signed_in(home_page.navbar)
+
+    with step("The access token lapses mid-visit"):
+        replace_access_token(home_page.page, expired_access_token)
+
+    with step("Go to the order history from the account menu"):
+        home_page.navbar.open_order_history()
+
+    with step("The customer is sent to log in"):
+        expect(home_page.page).to_have_url(LoginPage.path)
+
+    with step("Neither token is left in the browser"):
+        assert stored_tokens(home_page.page) == [None, None]

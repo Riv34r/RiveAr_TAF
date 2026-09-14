@@ -146,7 +146,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_login.py` | UI-LOGIN-01..08 | Login form, validation, return to the page asked for, a session handed to the browser, logout, a rejected stored session, renewal mid-visit |
+| `tests/ui/test_login.py` | UI-LOGIN-01..09 | Login form, validation, return to the page asked for, a session handed to the browser, logout, a rejected stored session, renewal mid-visit and its failure |
 
 ## Defects found
 

@@ -39,6 +39,9 @@ def context(new_context, session_state, request):
     if "rejected_session_page" in request.fixturenames:
         tokens = request.getfixturevalue("rejected_session_tokens")
         return new_context(storage_state=session_state(tokens))
+    if "unrenewable_session_page" in request.fixturenames:
+        tokens = request.getfixturevalue("unrenewable_session_tokens")
+        return new_context(storage_state=session_state(tokens))
     return new_context()
 
 
@@ -58,6 +61,18 @@ def rejected_session_page(page):
 def rejected_session_tokens(expired_access_token) -> dict:
     """An expired access token and a malformed refresh token."""
     return {"access_token": expired_access_token, "refresh_token": "not.a.token"}
+
+
+@pytest.fixture
+def unrenewable_session_page(page):
+    """The test's page, signed in as the seeded CUSTOMER with no way to renew."""
+    return page
+
+
+@pytest.fixture
+def unrenewable_session_tokens(customer_tokens) -> dict:
+    """The seeded CUSTOMER's working access token and a malformed refresh token."""
+    return {**customer_tokens, "refresh_token": "not.a.token"}
 
 
 @pytest.fixture
