@@ -31,7 +31,7 @@ Prioritize meaningful behavioural coverage over test count.
 Put each scenario on the lowest layer that can prove it.
 
 - API: business rules, validation, authorization, state transitions, idempotency, concurrency.
-- UI: only what the browser can get wrong - what a screen shows, where the app navigates, what a form rejects before sending, what survives a reload. A scenario that would pass just the same if the front end rendered raw JSON belongs to the API, not the UI.
+- UI: only what the browser can get wrong - for example what a screen shows, where the app navigates, what a form rejects before sending, what survives a reload, and how the browser keeps, renews and drops a session. A scenario that would pass just the same if the front end rendered raw JSON belongs to the API, not the UI.
 - DB: rules the schema enforces itself - CHECK constraints, generated columns, foreign keys, ON DELETE, UNIQUE. Not what every schema does (primary keys, NOT NULL, default values).
 
 Where a UI or DB scenario would repeat an existing API one, reference the API scenario's ID instead of duplicating it.
@@ -60,6 +60,13 @@ Consider the following categories where relevant to the layer:
 - Response schema and data integrity
 - Resource relationships
 - Side effects
+
+For UI scenarios, also consider:
+
+- Navigation and redirects, including the return to the page first asked for
+- What survives a reload
+- Validation the browser applies before sending, against what only the API rejects
+- Loading, empty and error states
 
 Only include categories that are supported by the layer's source of truth or confirmed by the SUT.
 

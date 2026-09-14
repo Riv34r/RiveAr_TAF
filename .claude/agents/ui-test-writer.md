@@ -66,7 +66,7 @@ pytestmark = allure.feature("UI: Login")
 @allure.title("Valid credentials sign the customer in")
 @allure.tag("UI-LOGIN-01")
 @allure.severity(allure.severity_level.BLOCKER)
-def test_valid_credentials_sign_the_customer_in(login_page, base_url, customer, seed_manifest):
+def test_valid_credentials_sign_the_customer_in(login_page, base_url, customer):
 
 The tag is the scenario's ID and the title is its title.
 
@@ -147,15 +147,15 @@ def login_page(page) -> LoginPage:
 
 Test:
 
-def test_valid_credentials_sign_the_customer_in(login_page, base_url, customer, seed_manifest):
+def test_valid_credentials_sign_the_customer_in(login_page, base_url, customer):
     with step("Log in as the seeded customer"):
         login_page.open()
-        login_page.login(customer["email"], seed_manifest["password"])
+        login_page.login(customer["email"], customer["password"])
 
     with step("The storefront opens"):
         expect(login_page.page).to_have_url(f"{base_url}/")
 
-Every Page Object reaches a test through a function-scoped fixture in tests/ui/conftest.py, named after its screen (login_page, cart_page) - tests never construct one themselves. The fixture only builds the object and never navigates: a test may need to prepare the browser first, and sign_in must run before the first page.goto(). Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
+Every Page Object reaches a test through a function-scoped fixture in tests/ui/conftest.py, named after its screen (login_page, cart_page) - tests never construct one themselves. Every Page Object fixture is built on the one page fixture, and never navigates. Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
 
 Create wrappers when they:
 - remove meaningful duplication
@@ -235,7 +235,14 @@ with step("The failure is shown and the customer stays on the form"):
 
 ## Authentication and test data
 
-Reuse existing authentication fixtures or storage state when available.
+A test for a signed-in customer requests customer_page; a test for a visitor who hasn't logged in requests page:
+
+def test_orders_are_listed(customer_page, orders_page): ...
+def test_login_form_rejects_empty_input(page, login_page): ...
+
+The context fixture in tests/ui/conftest.py builds the browser context with the session the test's page fixture asks for, from data/session_state.json. A new kind of session - another role, or a deliberately broken token pair - gets three small pieces: a fixture for its token pair, a <kind>_page fixture that returns page, and one switch in context that loads those tokens when <kind>_page is requested. Add them only with the first test that needs that session.
+
+customer_page returns the same page object as page, so Page Object fixtures built on page see the session - never create a second context or page for a session.
 
 Do not perform UI login in every test unless testing the login flow itself.
 
