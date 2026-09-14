@@ -8,8 +8,9 @@ it over HTTP only and imports nothing from its source.
 
 ## Status
 
-Framework foundation: an HTTP client, fixtures, one smoke suite. Everything
-else is built incrementally on top of this - see [Roadmap](#roadmap).
+API, DB and UI layers are in place: seven API suites, DB suites for the rules
+the schema enforces, and a first UI suite for logging in. Built incrementally -
+see [Roadmap](#roadmap).
 
 ## Structure
 
@@ -28,14 +29,19 @@ don't have code yet.
 - `db/` - everything specific to the SUT's database:
   - `db/models.py` - ORM models mirroring its tables, declared here rather
     than imported from the SUT
+- `ui/` - everything specific to driving the SUT's front end:
+  - `ui/pages/` - page objects, one per screen
+  - `ui/components/` - objects for components on more than one screen
 - `utils/` - shared assertion and reporting helpers (`assert_status_code`,
   `assert_error`, `step`, ...)
+- `data/` - static files the suites load, e.g. `session_state.json`: the
+  browser storage a signed-in UI test starts with, its origin and tokens
+  filled in at runtime
 - `tests/` - test suites, split the same way:
   - `tests/conftest.py` - fixtures more than one suite needs
   - `tests/api/` - API test suites, `conftest.py`, and `tests/api/scenarios/`
-  - `tests/db/` - DB test suites
-  - `tests/ui/` - UI `conftest.py` and `tests/ui/scenarios/`; the suites and a
-    top-level `ui/` for page objects arrive with the first implemented test
+  - `tests/db/` - DB test suites and `tests/db/scenarios/`
+  - `tests/ui/` - UI test suites, `conftest.py`, and `tests/ui/scenarios/`
 
 Page objects expose locators and actions; assertions stay in the test - the
 same split as API clients returning responses that `utils` asserts on.
@@ -89,31 +95,58 @@ see [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
 Both share one SUT boot - it costs minutes, the tests cost seconds. Each run
 writes a per-suite job summary and uploads the Allure/JUnit reports as a
-build artifact.
+build artifact. The UI suite doesn't run in CI yet.
 
 ## Fixtures
 
-| Fixture         | Scope    | Purpose                                          |
-|-----------------|----------|---------------------------------------------------|
-| `api_url`       | session  | Base URL + version prefix, from `.env`           |
-| `api`           | session  | Unauthenticated `ApiClient`                      |
-| `auth_client`   | session  | `AuthClient` wrapping `api`, for `/auth/*`       |
-| `seed_manifest` | session  | Seeded accounts and their shared password        |
-| `customer`      | session  | The seeded CUSTOMER account                      |
-| `admin_client`  | session  | `ApiClient` authenticated as the seeded ADMIN    |
-| `run_id`        | function | Unique tag for one test's disposable entities    |
-| `factory`       | function | Creates disposable entities, cleaned up after    |
-| `base_url`      | session  | The front end's URL, from `.env`                 |
-| `customer_tokens` | session | A token pair for the seeded CUSTOMER, over the API |
-| `sign_in`       | function | Hands the browser a session, skipping the login form |
+Shared by more than one suite - `tests/conftest.py`:
+
+| Fixture | Scope | Purpose |
+|---|---|---|
+| `api_url` | session | Base URL + version prefix, from `.env` |
+| `api` | session | Unauthenticated `ApiClient` |
+| `auth_client` | session | `AuthClient` wrapping `api`, for `/auth/*` |
+| `seed_manifest` | session | Seeded accounts, their shared password, and named seed fixtures |
+| `customer` | session | The seeded CUSTOMER account, with its password |
+| `db_session` | function | A database session rolled back after the test |
+| `count_rows` | function | `count_rows(condition)` - how many rows match |
+
+API suite - `tests/api/conftest.py`:
+
+| Fixture | Scope | Purpose |
+|---|---|---|
+| `admin_client` | session | `AdminClient` authenticated as the seeded ADMIN |
+| `run_id` | function | Unique tag for one test's disposable entities |
+| `factory` | function | Creates disposable entities, cleaned up after |
+
+UI suite - `tests/ui/conftest.py`: a test for a visitor who hasn't logged in
+uses `page`; one for the seeded customer uses `customer_page`. Both are the
+same browser page, so page objects built on `page` work with either -
+`customer_page` only makes the browser context start with the customer's
+session in storage, filled in from `data/session_state.json`. Any other
+session a test needs (`lapsed_session_page`, ...) follows the same pattern: a
+fixture for its tokens, a `<kind>_page` fixture, and an entry in `SESSIONS`.
+Page objects reach tests through fixtures named after their screen
+(`login_page`, `order_history_page`).
 
 ## Test coverage
 
-Test cases carry stable IDs via `@allure.tag(...)` (`HLT-*`, `AUTH-*`, ...).
-Docstrings are reserved for genuinely important context, not the ID itself.
+Test cases carry stable IDs via `@allure.tag(...)`, matching the scenario docs
+in each suite's `scenarios/` folder. Docstrings are reserved for genuinely
+important context, not the ID itself.
 
-- `tests/api/test_health.py` - HLT-01/02
-- `tests/api/test_auth.py` - AUTH-001..031 (register, login, refresh, logout, profile, password)
+| Suite | IDs | Covers |
+|---|---|---|
+| `tests/api/test_health.py` | HLT-01..02 | API and database up, non-production environment |
+| `tests/api/test_auth.py` | AUTH-001..031 | Register, login, refresh, logout, profile, password |
+| `tests/api/test_admin.py` | ADMIN-001..020 | Users, audit logs |
+| `tests/api/test_admin_roles.py` | ROLE-001..017 | Roles and permission grants |
+| `tests/api/test_products.py` | PROD-001..040 | CRUD, soft delete, bulk operations, ETag/If-Match |
+| `tests/api/test_inventory.py` | INV-001..021 | Listing, stock adjustments, transaction history |
+| `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
+| `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
+| `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
+| `tests/ui/test_login.py` | UI-LOGIN-01..10 | Login form, protected routes, session lifecycle |
 
 ## Defects found
 
@@ -130,13 +163,13 @@ pre-commit install
 
 ## Roadmap
 
-| # | Increment | Adds |
-|---|-----------|------|
-| 1 | **API foundation** (current) | `ApiClient`, fixtures, health suite, Allure/JUnit reporting |
-| 2 | API domain suites | Auth, orders, products, cart, promotions, RBAC |
-| 3 | Test data lifecycle | Factories + cleanup for suites that mutate state |
-| 4 | Database layer | Read-only verification of state the API only claims |
-| 5 | API + DB integration | Checkout reserves stock, cancellation releases it |
-| 6 | UI layer | Playwright, page objects, critical journeys |
-| 7 | End-to-end | UI action -> API state -> DB truth |
-| 8 | CI | GitHub Actions: boot the SUT, run suites, publish reports |
+| # | Increment | Adds | Status |
+|---|-----------|------|--------|
+| 1 | API foundation | `ApiClient`, fixtures, health suite, Allure/JUnit reporting | Done |
+| 2 | API domain suites | Auth, admin and roles, products, inventory, orders | Done - cart and promotions not yet |
+| 3 | Test data lifecycle | Factories + cleanup for suites that mutate state | Done |
+| 4 | Database layer | Rules the schema enforces itself | Done |
+| 5 | DB checks in API tests | Database assertions where the API's response can't show the state | Done |
+| 6 | UI layer | Playwright, page objects, critical journeys | In progress - login |
+| 7 | End-to-end | UI action -> API state -> DB truth | Planned |
+| 8 | CI | GitHub Actions: boot the SUT, run suites, publish reports | Done for API and DB |
