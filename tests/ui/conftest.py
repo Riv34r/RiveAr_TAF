@@ -35,6 +35,9 @@ def context(new_context, session_state, request):
     if "customer_page" in request.fixturenames:
         tokens = request.getfixturevalue("customer_tokens")
         return new_context(storage_state=session_state(tokens))
+    if "rejected_session_page" in request.fixturenames:
+        tokens = request.getfixturevalue("rejected_session_tokens")
+        return new_context(storage_state=session_state(tokens))
     return new_context()
 
 
@@ -42,6 +45,18 @@ def context(new_context, session_state, request):
 def customer_page(page):
     """The test's page, signed in as the seeded CUSTOMER - see context."""
     return page
+
+
+@pytest.fixture
+def rejected_session_page(page):
+    """The test's page, starting with a token pair the API rejects - see context."""
+    return page
+
+
+@pytest.fixture
+def rejected_session_tokens(expired_access_token) -> dict:
+    """An expired access token and a malformed refresh token."""
+    return {"access_token": expired_access_token, "refresh_token": "not.a.token"}
 
 
 @pytest.fixture

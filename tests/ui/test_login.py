@@ -33,6 +33,14 @@ def watch_requests(page, path: str) -> list[str]:
     return sent
 
 
+def stored_tokens(page) -> list:
+    """The access and refresh tokens the front end holds now, None where gone."""
+    return page.evaluate(
+        "['rivear_access_token', 'rivear_refresh_token']"
+        ".map(key => localStorage.getItem(key))"
+    )
+
+
 @allure.title(
     "Valid credentials sign the customer in and the session survives a reload"
 )
@@ -154,3 +162,16 @@ def test_logging_out_ends_the_session_in_the_browser(customer_page, order_histor
     with step("Opening the order history again asks to log in"):
         order_history_page.open()
         expect(order_history_page.page).to_have_url(LoginPage.path)
+
+
+@allure.title("A stored session the API rejects is treated as signed out")
+@allure.tag("UI-LOGIN-07")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_rejected_stored_session_is_treated_as_signed_out(
+    rejected_session_page, order_history_page
+):
+    with step("The order history sends the customer to log in"):
+        expect(order_history_page.page).to_have_url(LoginPage.path)
+
+    with step("Neither token is left in the browser"):
+        assert stored_tokens(order_history_page.page) == [None, None]

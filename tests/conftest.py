@@ -1,6 +1,7 @@
 """Fixtures shared by more than one suite."""
 
 import os
+import time
 
 import pytest
 from dotenv import load_dotenv
@@ -11,7 +12,7 @@ from api.clients.auth_client import AuthClient
 from core.api.api_client import ApiClient
 from core.db.session import build_dsn
 from db.models import Order
-from utils.helpers import seeded_account
+from utils.helpers import assert_status_code, seeded_account
 
 load_dotenv(override=False)
 
@@ -50,6 +51,17 @@ def seed_manifest(api) -> dict:
 def customer(seed_manifest) -> dict:
     """The seeded CUSTOMER account (email, role, password, ...)."""
     return seeded_account(seed_manifest, "CUSTOMER")
+
+
+@pytest.fixture(scope="session")
+def expired_access_token(api, customer) -> str:
+    """An access token for the seeded CUSTOMER that has already expired."""
+    response = api.post(
+        "/test/token", json={"email": customer["email"], "ttl_seconds": 1}
+    )
+    assert_status_code(response, 200)
+    time.sleep(1.5)
+    return response.json()["access_token"]
 
 
 @pytest.fixture(scope="session")
