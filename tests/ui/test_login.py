@@ -7,6 +7,7 @@ import allure
 import pytest
 from playwright.sync_api import expect
 
+from ui.pages.order_details_page import OrderDetailsPage
 from utils.helpers import step
 
 pytestmark = allure.feature("UI: Login")
@@ -93,3 +94,30 @@ def test_form_rejects_invalid_input_before_sending(
     with step("Nothing was sent, and the customer stays on the form"):
         assert login_requests == []
         expect(login_page.page).to_have_url(login_page.path)
+
+
+@allure.title(
+    "An anonymous visitor is sent to log in "
+    "and brought back to the page they asked for"
+)
+@allure.tag("UI-LOGIN-04")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_anonymous_visitor_is_brought_back_after_logging_in(
+    login_page, customer, customer_order
+):
+    order_path = OrderDetailsPage.path.format(id=customer_order.id)
+
+    with step("Open one of the customer's orders without a session"):
+        login_page.page.goto(order_path)
+
+    with step("The visitor is sent to log in"):
+        expect(login_page.page).to_have_url(login_page.path)
+
+    with step("Log in as the seeded customer"):
+        order_details_page = login_page.login(customer, lands_on=OrderDetailsPage)
+
+    with step("The order that was asked for opens"):
+        expect(order_details_page.page).to_have_url(order_path)
+        expect(order_details_page.order_number).to_have_text(
+            customer_order.order_number
+        )

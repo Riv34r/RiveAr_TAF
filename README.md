@@ -107,6 +107,7 @@ Shared by more than one suite - `tests/conftest.py`:
 | `auth_client` | session | `AuthClient` wrapping `api`, for `/auth/*` |
 | `seed_manifest` | session | Seeded accounts, their shared password, and named seed fixtures |
 | `customer` | session | The seeded CUSTOMER account, with its password |
+| `customer_order` | function | One of the seeded CUSTOMER's orders, from the database |
 | `db_session` | function | A database session rolled back after the test |
 | `count_rows` | function | `count_rows(condition)` - how many rows match |
 
@@ -142,7 +143,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_login.py` | UI-LOGIN-01 | Logging in through the form |
+| `tests/ui/test_login.py` | UI-LOGIN-01..04 | Login form, validation, return to the page asked for |
 
 ## Defects found
 

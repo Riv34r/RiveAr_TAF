@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from api.clients.auth_client import AuthClient
 from core.api.api_client import ApiClient
 from core.db.session import build_dsn
+from db.models import Order
 from utils.helpers import seeded_account
 
 load_dotenv(override=False)
@@ -88,3 +89,13 @@ def count_rows(db_session):
         return db_session.scalar(select(func.count()).where(condition))
 
     return _count
+
+
+@pytest.fixture
+def customer_order(db_session, customer) -> Order:
+    """One of the seeded CUSTOMER's orders, from the database."""
+    order = db_session.scalars(
+        select(Order).where(Order.customer_id == customer["customer_id"])
+    ).first()
+    assert order is not None, "The seeded CUSTOMER has no orders to test against"
+    return order

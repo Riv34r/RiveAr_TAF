@@ -24,9 +24,9 @@ class LoginPage(BasePage):
         super().__init__(page)
         self.form = LoginForm(page)
 
-    def login(self, account: dict) -> HomePage:
-        """Log in; returns the home, where a login from /login lands on success."""
+    def login(self, account: dict, lands_on: type[BasePage] = HomePage):
+        """Log in; returns the page a successful login lands on, the home by default."""
         self.form.email.fill(account["email"])
         self.form.password.fill(account["password"])
         self.form.login_button.click()
-        return HomePage(self.page)
+        return lands_on(self.page)
