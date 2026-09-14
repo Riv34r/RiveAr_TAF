@@ -138,11 +138,11 @@ class LoginPage(BasePage):
         super().__init__(page)
         self.form = LoginForm(page)
 
-    def login(self, account: dict) -> HomePage:
+    def login(self, account: dict, lands_on: type[BasePage] = HomePage):
         self.form.email.fill(account["email"])
         self.form.password.fill(account["password"])
         self.form.login_button.click()
-        return HomePage(self.page)
+        return lands_on(self.page)
 
 Fixture, in tests/ui/conftest.py:
 
@@ -160,7 +160,7 @@ def test_valid_credentials_sign_the_customer_in(login_page, customer):
     with step("The storefront opens"):
         expect(home_page.page).to_have_url(home_page.path)
 
-A test starts on exactly one screen: its Page Object comes from a function-scoped fixture in tests/ui/conftest.py, named after the screen, that opens it (login_page opens /login). A screen the test reaches afterwards comes from the action that leads there - login(account) returns HomePage - and tests never construct Page Objects themselves. The returned page is where the action normally leads, not a check: the test still asserts where the browser landed, or which errors show - expect(login_page.form.errors).to_have_text([...]). Let those web-first assertions do the waiting, and never wait for something to not appear. Every Page Object fixture is built on the one page fixture. A test that must arrive at a screen some other way - by a redirect - must not request that screen's opening fixture: the extra page load can make it pass for the wrong reason. Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
+A test starts on exactly one screen: its Page Object comes from a function-scoped fixture in tests/ui/conftest.py, named after the screen, that opens it (login_page opens /login). A screen the test reaches afterwards comes from the action that leads there - login(account) returns HomePage, login(account, lands_on=OrderDetailsPage) the page it was sent back to - and tests never construct Page Objects themselves. The returned page is where the action normally leads, not a check: the test still asserts where the browser landed, or which errors show - expect(login_page.form.errors).to_have_text([...]). Let those web-first assertions do the waiting, and never wait for something to not appear. Every Page Object fixture is built on the one page fixture. A redirect test - a protected page sending a visitor to log in - starts on login_page and navigates from there: login_page.page.goto(OrderDetailsPage.path.format(id=order.id)). A Page Object whose path holds an id keeps it as a template - path = "/orders/{id}". Component wrappers are built inside the Page Objects that contain them, and get a fixture of their own only when a test uses one directly.
 
 Create wrappers when they:
 - remove meaningful duplication
