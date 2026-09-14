@@ -58,6 +58,7 @@ Reuse existing abstractions instead of creating duplicates.
 - Tests: tests/ui/test_*.py. UI fixtures live in tests/ui/conftest.py; fixtures another suite also needs live in tests/conftest.py.
 - Every Page Object inherits BasePage from core/ui/base_page.py: it sets `path` and gets `page` and `open()`. Keep core/ui free of anything specific to RiveAr.
 - A component (the navbar) is composed into the Page Objects of the screens it appears on - the login screen has no navbar, the storefront home does.
+- A component action that always leads to one page returns it, importing that page inside the method: the page imports the component, so a top-level import would be circular - navbar.open_order_history() returns OrderHistoryPage.
 - Create ui/, ui/pages/ or ui/components/ only together with the first file that goes in it, and add ui to the packages list in pyproject.toml at the same time.
 
 Follow the Allure pattern of the existing suites - read one in tests/api/ before writing:
