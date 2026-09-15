@@ -34,22 +34,32 @@ jobs:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Read .claude/CLAUDE.md and .claude/agents/code-reviewer.md, then review
-            this pull request exactly as that agent defines: same focus areas, same
-            severity levels, same output format (Severity / Location / Problem /
-            Why it matters / Recommendation).
+            this pull request exactly as that agent defines.
 
             REPO: ${{ github.repository }}
             PR: ${{ github.event.pull_request.number || inputs.pr_number }}
 
-            Base the review on `gh pr diff`. Read other files only when the diff
-            itself requires it to judge a change correctly - do not scan the repo.
+            First inspect the complete PR using `gh pr diff`.
+
+            Follow the complete review process defined in code-reviewer.md.
+            In particular:
+            - review the entire PR before reporting findings
+            - do not stop after finding the first few issues
+            - perform a second pass looking for issues that may have been missed
+            - inspect relevant files outside the diff when needed to understand
+              framework patterns, related tests, fixtures, helpers, or conventions
+            - do not blindly scan the entire repository
+            - return one consolidated review containing all significant findings
 
             Always post exactly one top-level summary with `gh pr comment`, even
             if you find nothing worth flagging - say so explicitly rather than
             staying silent, so a passing review is visible, not indistinguishable
-            from a run that failed to post anything. For a finding tied to a
-            specific line, additionally use
+            from a run that failed to post anything.
+
+            For a finding tied to a specific line, additionally use
             `mcp__github_inline_comment__create_inline_comment` (confirmed: true).
+
             Post comments only - do not edit any files.
+
           claude_args: |
             --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
