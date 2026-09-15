@@ -20,8 +20,9 @@ def step(title: str):
 
 
 def seeded_account(manifest: dict, role: str) -> dict:
-    """The first seeded account holding `role` (e.g. "ADMIN", "CUSTOMER")."""
-    return next(a for a in manifest["accounts"] if a["role"] == role)
+    """The first seeded account holding `role`, with the shared seed password."""
+    account = next(a for a in manifest["accounts"] if a["role"] == role)
+    return {**account, "password": manifest["password"]}
 
 
 def assert_status_code(response, expected: int) -> None:

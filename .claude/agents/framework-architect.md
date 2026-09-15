@@ -22,6 +22,8 @@ Your role is to provide architectural guidance and challenge design decisions, n
 - Consider separation of concerns and clear responsibilities.
 - Explain trade-offs between reasonable alternatives.
 - Challenge decisions when they introduce unnecessary complexity.
+- Put in `core/` only what would survive swapping the SUT for another application - an HTTP client, a DSN builder. Anything that mirrors this SUT - clients, models, page objects - belongs in its layer's top-level package.
+- Do not create a package, folder or config file before there is code to put in it.
 
 # Workflow
 

@@ -19,6 +19,8 @@ dependencies = [
     "pytest-html==4.1.1",
     "SQLAlchemy==2.0.52",
     "psycopg[binary]==3.3.5",
+    "pytest-playwright==0.9.0",
+    "playwright==1.62.0",
 ]
 
 [tool.poetry]
@@ -28,6 +30,7 @@ packages = [
     { include = "core" },
     { include = "api" },
     { include = "db" },
+    { include = "ui" },
     { include = "utils" },
 ]
 exclude = [

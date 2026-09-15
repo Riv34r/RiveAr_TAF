@@ -25,6 +25,7 @@ supports it, and which automated test now guards each fix.
 | [BUG-002](#bug-002) | Medium | Open | UI | Staff have no navigation to the admin dashboard | — |
 | [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-018 |
 | [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-020 |
+| [BUG-005](#bug-005) | Medium | Open — accepted | UI | A reload after the access token expires signs the customer out, though the refresh token is valid | UI-LOGIN-10 |
 | [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-005 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
 | [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-007 |
@@ -381,6 +382,77 @@ lock-acquiring `SELECT` differently than a direct call would.
 Requires further investigation into why the existing lock isn't
 serializing these transactions before attempting a fix - not applied here.
 This file records testing findings rather than making them.
+
+---
+
+## BUG-005
+
+**Reloading the storefront after the access token expires signs the customer
+out, even though their refresh token is still valid.**
+
+| | |
+|---|---|
+| Severity | Medium |
+| Status | Open — accepted for now |
+| Area | Frontend — `api/client.ts`, `context/AuthContext.tsx` |
+| Found | Designing the UI login scenarios - reading how the front end renews a session |
+| Regression test | Planned: `UI-LOGIN-10` in `tests/ui/test_login.py`, pinning the current behaviour |
+
+### What happens
+
+Access tokens last 30 minutes and refresh tokens 7 days
+(`ACCESS_TOKEN_EXPIRE_MINUTES`, `REFRESH_TOKEN_EXPIRE_DAYS`). During a visit
+the front end renews correctly: a request that fails with 401 triggers
+`POST /auth/refresh` and is retried.
+
+On a page load it doesn't. `AuthContext` checks the session with
+`GET /auth/me`, and the retry in `client.ts` is skipped for any path starting
+with `/auth/`:
+
+```ts
+const isAuthEndpoint = path.startsWith("/auth/");
+```
+
+The exclusion is meant for login, register and refresh, where a 401 must not
+trigger a renewal, but the prefix also catches `/auth/me`. The 401 is never
+retried, `AuthContext` clears both tokens, and the protected route redirects
+to `/login`.
+
+### Steps to reproduce
+
+1. Log in as a customer
+2. Wait until the access token has expired - more than 30 minutes
+3. Reload the page, or open the storefront again in the same browser
+
+**Expected:** the session is renewed with the refresh token; the customer
+stays signed in.
+**Actual:** the customer is on `/login` and both tokens are gone.
+
+### Evidence
+
+Live against the running SUT, with an access token minted by
+`POST /test/token` (`ttl_seconds=1`) and left to expire, a refresh token in
+storage, then `/orders` opened:
+
+```
+API calls on load:  GET /auth/me   - no POST /auth/refresh
+landed on:          /login
+tokens in storage:  none
+```
+
+### Suggested fix
+
+Skip the renewal only for the endpoints that must not trigger one -
+`/auth/login`, `/auth/register`, `/auth/refresh`, `/auth/logout` - instead of
+every `/auth/` path. `GET /auth/me` on load then renews like any other
+request. Not applied - outside the scope of the change that was authorised.
+
+### Decision
+
+Accepted for now: 30 minutes covers an active visit, and renewal during the
+visit works (`UI-LOGIN-08`). What's lost is only a return after a longer
+break. `UI-LOGIN-10` describes today's behaviour and will fail once this is
+fixed, as a reminder to flip the scenario.
 
 ---
 
