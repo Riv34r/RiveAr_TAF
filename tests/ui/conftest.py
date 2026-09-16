@@ -16,6 +16,14 @@ from ui.pages.order_history_page import OrderHistoryPage
 from ui.pages.product_details_page import ProductDetailsPage
 from utils.helpers import assert_status_code
 
+# Each page fixture that starts signed in, and the token pair its context holds.
+SESSIONS = {
+    "customer_page": "customer_tokens",
+    "rejected_session_page": "rejected_session_tokens",
+    "unrenewable_session_page": "unrenewable_session_tokens",
+    "lapsed_session_page": "lapsed_session_tokens",
+}
+
 
 @pytest.fixture(scope="session")
 def base_url() -> str:
@@ -38,18 +46,10 @@ def session_state(pytestconfig, base_url):
 @pytest.fixture
 def context(new_context, session_state, request):
     """The test's context - holding the session its page fixture asks for."""
-    if "customer_page" in request.fixturenames:
-        tokens = request.getfixturevalue("customer_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "rejected_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("rejected_session_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "unrenewable_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("unrenewable_session_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "lapsed_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("lapsed_session_tokens")
-        return new_context(storage_state=session_state(tokens))
+    for page_fixture, tokens_fixture in SESSIONS.items():
+        if page_fixture in request.fixturenames:
+            tokens = request.getfixturevalue(tokens_fixture)
+            return new_context(storage_state=session_state(tokens))
     return new_context()
 
 

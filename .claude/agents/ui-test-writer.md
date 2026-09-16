@@ -246,7 +246,7 @@ A test for a signed-in customer requests customer_page; a test for a visitor who
 def test_orders_are_listed(customer_page, orders_page): ...
 def test_login_form_rejects_empty_input(page, login_page): ...
 
-The context fixture in tests/ui/conftest.py builds the browser context with the session the test's page fixture asks for, from data/session_state.json. A new kind of session - another role, or a deliberately broken token pair - gets three small pieces: a fixture for its token pair, a <kind>_page fixture that returns page, and one switch in context that loads those tokens when <kind>_page is requested. Add them only with the first test that needs that session.
+The context fixture in tests/ui/conftest.py builds the browser context with the session the test's page fixture asks for, from data/session_state.json. A new kind of session - another role, or a deliberately broken token pair - gets three small pieces: a fixture for its token pair, a <kind>_page fixture that returns page, and one entry in SESSIONS pairing the two, which context uses to load those tokens when <kind>_page is requested. Add them only with the first test that needs that session.
 
 customer_page returns the same page object as page, so Page Object fixtures built on page see the session - never create a second context or page for a session.
 
