@@ -15,8 +15,11 @@ out-of-stock product - belongs to the API's cart domain, which has no scenarios
 yet; checking out a cart is ORD-021 to ORD-023 in `tests/api/scenarios/orders.md`.
 
 Routes in scope: `/products/:productId` (adding to the cart), `/cart`, and
-`/checkout` as far as it guards against an empty cart. The checkout steps and
-placing an order belong to checkout.
+`/checkout` as far as reaching it with the cart. The checkout steps and placing
+an order belong to checkout. That checkout sends a customer with an empty cart
+back to `/cart` has no scenario: no page in the app leads to checkout with an
+empty cart, and opening it directly is BUG-006, which redirects whatever the
+cart holds; ORD-022 covers the server refusing it.
 
 A customer in these scenarios is a disposable one with an empty cart. The
 server sums what a login carries over into the cart, so the seeded CUSTOMER
@@ -109,7 +112,9 @@ to decide.
 with an empty cart back to `/cart`. A guest who proceeds to checkout must land
 back on checkout after logging in, with the cart they built. The return itself
 is the mechanism UI-LOGIN-04 covers; here it matters because the cart has to
-be carried over before checkout decides the cart is empty.
+be carried over before checkout decides the cart is empty. That the cart
+reaches the server exactly once is UI-CART-02; a reload of checkout itself is
+UI-CART-06.
 
 **Preconditions:**
 - A disposable customer with an empty cart.
@@ -120,20 +125,25 @@ be carried over before checkout decides the cart is empty.
 - After logging in, the browser lands on `/checkout`.
 - The checkout's order summary lists the product with quantity 2.
 
-### UI-CART-05 — Opening checkout with an empty cart sends the customer to the cart
+### UI-CART-06 — Reloading checkout sends a customer with a full cart back to the cart
 
-**Route:** /checkout, /cart
+**Route:** /cart, /checkout
 **Type:** Negative
 **Priority:** Medium
 
-**Objective:** The front end keeps a customer with nothing to buy out of the
-checkout steps rather than letting the order fail at the end. The server
-refuses such a checkout as well (ORD-022); this covers what the browser does
-first.
+**Known defect:** [BUG-006](../../../BUGS.md#bug-006), open. On a page load
+checkout decides the cart is empty before the customer's cart has loaded, and
+redirects to `/cart`. This scenario describes the behaviour as it is and flips
+to "checkout stays open with the cart" once BUG-006 is fixed.
+
+**Objective:** A customer who reloads checkout - or opens it from a link - is
+sent back to the cart even though the cart holds items. Reaching checkout from
+the cart inside the app is unaffected (UI-CART-04).
 
 **Preconditions:**
-- A disposable customer with an empty cart, signed in by a session handed to the browser.
+- A disposable customer whose cart holds two of a disposable active product with stock, put there through the API.
 
 **Expected Result:**
-- Opening `/checkout` lands on `/cart`.
-- The cart shows "Your cart is empty".
+- After logging in and proceeding to checkout from the cart, checkout shows the order summary.
+- After a reload, the browser lands on `/cart`.
+- The cart still lists the product with quantity 2.

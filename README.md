@@ -149,7 +149,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_cart.py` | UI-CART-01..03 | A guest's cart - one line per product, kept across a reload, carried over once on login, refused lines dropped with a warning |
+| `tests/ui/test_cart.py` | UI-CART-01..04, 06 | A guest's cart - one line per product, kept across a reload, carried over once on login, refused lines dropped with a warning, back to checkout after logging in; a reload of checkout (BUG-006) |
 | `tests/ui/test_login.py` | UI-LOGIN-01..10 | Login form, validation, return to the page asked for, a session handed to the browser, logout, a rejected stored session, renewal mid-visit and its failure, a reload after the access token lapses (BUG-005) |
 
 ## Defects found

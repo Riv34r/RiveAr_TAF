@@ -7,6 +7,8 @@ from string import Template
 
 import pytest
 
+from api.clients.cart_client import CartClient
+from core.api.api_client import ApiClient
 from ui.pages.cart_page import CartLine
 from ui.pages.home_page import HomePage
 from ui.pages.login_page import LoginPage
@@ -144,6 +146,15 @@ def refused_guest_cart(login_page, new_product, out_of_stock_product):
         "lines => localStorage.setItem('rivear_guest_cart', JSON.stringify(lines))",
         lines,
     )
+
+
+@pytest.fixture
+def new_customer_cart(api_url, auth_client, new_customer, new_product):
+    """The throwaway customer's cart holds two of the throwaway product."""
+    account = new_customer["attributes"]
+    tokens = auth_client.login(account["email"], account["password"]).json()
+    cart = CartClient(ApiClient(api_url, tokens["access_token"]))
+    assert_status_code(cart.add_item(new_product["entity_id"], quantity=2), 200)
 
 
 @pytest.fixture

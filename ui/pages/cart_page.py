@@ -21,6 +21,12 @@ class CartPage(BasePage):
     def __init__(self, page: Page):
         super().__init__(page)
         self.items = page.get_by_test_id("cart-row")
+        self.checkout_button = page.get_by_role("button", name="Proceed to checkout")
+
+    def proceed_to_checkout(self, lands_on: type[BasePage]):
+        """Proceed to checkout; returns where it lands - login, for a guest."""
+        self.checkout_button.click()
+        return lands_on(self.page)
 
     def lines(self) -> list[CartLine]:
         """What the cart shows right now - wait for it to load before reading."""

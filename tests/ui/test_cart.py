@@ -6,6 +6,9 @@ Implements scenarios from tests/ui/scenarios/cart.md.
 import allure
 from playwright.sync_api import expect
 
+from ui.pages.cart_page import CartPage
+from ui.pages.checkout_page import CheckoutPage
+from ui.pages.login_page import LoginPage
 from utils.helpers import step
 
 pytestmark = allure.feature("UI: Cart")
@@ -95,3 +98,59 @@ def test_guest_line_the_server_refuses_is_dropped_on_login(
         cart_page = home_page.navbar.open_cart()
         expect(cart_page.items).to_have_count(1)
         assert cart_page.lines() == [new_product_line(quantity=1)]
+
+
+@allure.title(
+    "A guest proceeding to checkout logs in and comes back to checkout with the cart"
+)
+@allure.tag("UI-CART-04")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_guest_proceeding_to_checkout_comes_back_to_it_with_the_cart(
+    product_details_page, new_customer, new_product_line
+):
+    with step("The guest cart holds two of the product"):
+        product_details_page.add_to_cart(quantity=2)
+
+    with step("Proceed to checkout from the cart"):
+        cart_page = product_details_page.navbar.open_cart()
+        login_page = cart_page.proceed_to_checkout(lands_on=LoginPage)
+
+    with step("The guest is sent to log in"):
+        expect(login_page.page).to_have_url(login_page.path)
+
+    with step("Log in as a fresh customer"):
+        checkout_page = login_page.login(
+            new_customer["attributes"], lands_on=CheckoutPage
+        )
+
+    with step("The browser lands back on checkout"):
+        expect(checkout_page.page).to_have_url(checkout_page.path)
+
+    with step("The order summary lists the product with quantity 2"):
+        expect(checkout_page.summary_items).to_have_count(1)
+        assert checkout_page.lines() == [new_product_line(quantity=2)]
+
+
+@allure.title("Reloading checkout sends a customer with a full cart back to the cart")
+@allure.tag("UI-CART-06")
+@allure.severity(allure.severity_level.NORMAL)
+def test_reloading_checkout_sends_a_customer_with_a_full_cart_to_the_cart(
+    login_page, new_customer_cart, new_customer, new_product_line
+):
+    """Pins BUG-006 as it is - flips to staying on checkout once it is fixed."""
+    # TODO: flip to "checkout stays open with the cart" once BUG-006 is fixed
+    with step("Log in and proceed to checkout from the cart"):
+        home_page = login_page.login(new_customer["attributes"])
+        cart_page = home_page.navbar.open_cart()
+        checkout_page = cart_page.proceed_to_checkout(lands_on=CheckoutPage)
+
+    with step("Checkout shows the order summary"):
+        expect(checkout_page.summary_items).to_have_count(1)
+
+    with step("After a reload, the browser lands on the cart"):
+        checkout_page.page.reload()
+        expect(checkout_page.page).to_have_url(CartPage.path)
+
+    with step("The cart still lists the product with quantity 2"):
+        expect(cart_page.items).to_have_count(1)
+        assert cart_page.lines() == [new_product_line(quantity=2)]
