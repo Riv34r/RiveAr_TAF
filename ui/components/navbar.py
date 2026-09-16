@@ -1,7 +1,6 @@
 """The storefront's top bar, shown on every storefront screen."""
 
 from playwright.sync_api import Page
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 
 class Navbar:
@@ -17,12 +16,7 @@ class Navbar:
 
     def open_account_menu(self):
         """Open the account menu, which only a signed-in user has."""
-        try:
-            self.account_menu_button.click()
-        except PlaywrightTimeoutError:
-            raise RuntimeError(
-                "No account menu: no one is signed in - the navbar shows none"
-            ) from None
+        self.account_menu_button.click()
 
     def open_login(self):
         """Go to the login screen from the navbar."""
