@@ -10,6 +10,7 @@ class Navbar:
         # The footer has its own "Log in" link, so look only inside the top bar.
         bar = page.get_by_role("banner")
         self.login_link = bar.get_by_role("link", name="Log in")
+        self.cart_link = bar.get_by_role("link", name="View cart")
         self.account_menu_button = bar.get_by_role("button", name="Open account menu")
         self.order_history_item = page.get_by_role("menuitem", name="Order history")
         self.logout_item = page.get_by_role("menuitem", name="Log out")
@@ -22,6 +23,13 @@ class Navbar:
             raise RuntimeError(
                 "No account menu: no one is signed in - the navbar shows none"
             ) from None
+
+    def open_cart(self):
+        """Go to the cart from the navbar."""
+        from ui.pages.cart_page import CartPage
+
+        self.cart_link.click()
+        return CartPage(self.page)
 
     def open_order_history(self):
         """Go to the order history from the account menu."""

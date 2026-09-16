@@ -9,6 +9,6 @@ class BasePage:
     def __init__(self, page: Page):
         self.page = page
 
-    def open(self):
-        self.page.goto(self.path)
+    def open(self, **params):
+        self.page.goto(self.path.format(**params))
         return self

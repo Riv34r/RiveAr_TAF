@@ -2,13 +2,16 @@
 
 import json
 import os
+from decimal import Decimal
 from string import Template
 
 import pytest
 
+from ui.pages.cart_page import CartLine
 from ui.pages.home_page import HomePage
 from ui.pages.login_page import LoginPage
 from ui.pages.order_history_page import OrderHistoryPage
+from ui.pages.product_details_page import ProductDetailsPage
 from utils.helpers import assert_status_code
 
 
@@ -114,3 +117,23 @@ def login_page(page) -> LoginPage:
 def order_history_page(page) -> OrderHistoryPage:
     """The customer's order history, opened in this test's page."""
     return OrderHistoryPage(page).open()
+
+
+@pytest.fixture
+def new_product_line(new_product):
+    """new_product_line(quantity) - the cart line the throwaway product makes."""
+
+    def _line(quantity: int) -> CartLine:
+        return CartLine(
+            name=new_product["attributes"]["name"],
+            quantity=quantity,
+            line_total=Decimal(new_product["attributes"]["price"]) * quantity,
+        )
+
+    return _line
+
+
+@pytest.fixture
+def product_details_page(page, new_product) -> ProductDetailsPage:
+    """The throwaway product's page, opened in this test's page."""
+    return ProductDetailsPage(page).open(id=new_product["entity_id"])

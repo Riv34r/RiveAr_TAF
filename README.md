@@ -109,6 +109,9 @@ Shared by more than one suite - `tests/conftest.py`:
 | `customer` | session | The seeded CUSTOMER account, with its password |
 | `customer_order` | function | One of the seeded CUSTOMER's orders, from the database |
 | `expired_access_token` | session | An access token for the seeded CUSTOMER that has already expired |
+| `run_id` | function | Unique tag for one test's disposable entities |
+| `factory` | function | Creates disposable entities, cleaned up after |
+| `new_product` | function | A disposable active product with stock and no category |
 | `db_session` | function | A database session rolled back after the test |
 | `count_rows` | function | `count_rows(condition)` - how many rows match |
 
@@ -117,8 +120,6 @@ API suite - `tests/api/conftest.py`:
 | Fixture | Scope | Purpose |
 |---|---|---|
 | `admin_client` | session | `AdminClient` authenticated as the seeded ADMIN |
-| `run_id` | function | Unique tag for one test's disposable entities |
-| `factory` | function | Creates disposable entities, cleaned up after |
 
 UI suite - `tests/ui/conftest.py`: `base_url`, the front end's URL from `.env`,
 and page objects reaching tests through fixtures named after their screen
@@ -146,6 +147,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
+| `tests/ui/test_cart.py` | UI-CART-01 | A guest's cart - one line per product, kept across a reload |
 | `tests/ui/test_login.py` | UI-LOGIN-01..10 | Login form, validation, return to the page asked for, a session handed to the browser, logout, a rejected stored session, renewal mid-visit and its failure, a reload after the access token lapses (BUG-005) |
 
 ## Defects found
