@@ -79,6 +79,16 @@ def factory(api, run_id):
     api.delete("/test/cleanup", params={"run_id": run_id})
 
 
+@pytest.fixture(scope="session")
+def out_of_stock_product(seed_manifest) -> dict:
+    """The seeded product with no stock, as the seed manifest lists it."""
+    return next(
+        fixture
+        for fixture in seed_manifest["fixtures"]
+        if fixture["key"] == "out_of_stock_product"
+    )
+
+
 @pytest.fixture
 def new_customer(factory):
     """A fresh throwaway customer, with an empty cart."""

@@ -88,12 +88,12 @@ to decide.
 
 **Preconditions:**
 - A disposable customer with an empty cart.
-- The browser holds no session, and the guest cart holds one of a disposable active product with stock and one of the seeded out-of-stock product - placed in the browser's storage before the page loads, since its page does not let a guest add it.
+- The browser holds no session, and the guest cart holds one of a disposable active product with stock and one of the seeded out-of-stock product - put into the browser's storage directly, since the out-of-stock product's page does not let a guest add it.
 
 **Expected Result:**
 - After logging in, the customer sees the warning "One item from your cart couldn't be added — it may be out of stock or no longer available."
-- The cart lists only the product that was in stock, with quantity 1.
 - The guest cart the browser held is empty.
+- The cart lists only the product that was in stock, with quantity 1.
 
 ---
 

@@ -134,6 +134,19 @@ def new_product_line(new_product):
 
 
 @pytest.fixture
+def refused_guest_cart(login_page, new_product, out_of_stock_product):
+    """The guest cart holds one in-stock and one out-of-stock product."""
+    lines = [
+        {"product_id": new_product["entity_id"], "quantity": 1},
+        {"product_id": out_of_stock_product["entity_id"], "quantity": 1},
+    ]
+    login_page.page.evaluate(
+        "lines => localStorage.setItem('rivear_guest_cart', JSON.stringify(lines))",
+        lines,
+    )
+
+
+@pytest.fixture
 def product_details_page(page, new_product) -> ProductDetailsPage:
     """The throwaway product's page, opened in this test's page."""
     return ProductDetailsPage(page).open(id=new_product["entity_id"])

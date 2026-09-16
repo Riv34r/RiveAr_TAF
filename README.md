@@ -111,6 +111,7 @@ Shared by more than one suite - `tests/conftest.py`:
 | `expired_access_token` | session | An access token for the seeded CUSTOMER that has already expired |
 | `run_id` | function | Unique tag for one test's disposable entities |
 | `factory` | function | Creates disposable entities, cleaned up after |
+| `out_of_stock_product` | session | The seeded product with no stock, from the seed manifest |
 | `new_customer` | function | A disposable customer with an empty cart |
 | `new_product` | function | A disposable active product with stock and no category |
 | `db_session` | function | A database session rolled back after the test |
@@ -148,7 +149,7 @@ important context, not the ID itself.
 | `tests/api/test_orders.py` | ORD-001..040 | Create, checkout, status machine, payments, idempotency |
 | `tests/db/test_inventory.py` | DB-INV-01..05 | Generated columns, CHECKs, foreign key, cascade |
 | `tests/db/test_orders.py` | DB-ORD-01..07 | Generated columns, CHECKs, cascade, RESTRICT, UNIQUE |
-| `tests/ui/test_cart.py` | UI-CART-01..02 | A guest's cart - one line per product, kept across a reload, carried over once on login |
+| `tests/ui/test_cart.py` | UI-CART-01..03 | A guest's cart - one line per product, kept across a reload, carried over once on login, refused lines dropped with a warning |
 | `tests/ui/test_login.py` | UI-LOGIN-01..10 | Login form, validation, return to the page asked for, a session handed to the browser, logout, a rejected stored session, renewal mid-visit and its failure, a reload after the access token lapses (BUG-005) |
 
 ## Defects found

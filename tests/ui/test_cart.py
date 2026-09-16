@@ -11,6 +11,11 @@ from utils.helpers import step
 pytestmark = allure.feature("UI: Cart")
 
 
+def wait_for_empty_guest_cart(page):
+    """Wait until the browser holds no guest cart - a login's merge is done."""
+    page.wait_for_function("() => localStorage.getItem('rivear_guest_cart') === null")
+
+
 @allure.title("A product a guest adds is in the cart once and survives a reload")
 @allure.tag("UI-CART-01")
 @allure.severity(allure.severity_level.CRITICAL)
@@ -53,9 +58,7 @@ def test_logging_in_carries_the_guest_cart_over_exactly_once(
         home_page = login_page.login(new_customer["attributes"])
 
     with step("The guest cart the browser held is emptied"):
-        home_page.page.wait_for_function(
-            "() => localStorage.getItem('rivear_guest_cart') === null"
-        )
+        wait_for_empty_guest_cart(home_page.page)
 
     with step("The cart lists the product with quantity 2"):
         cart_page = home_page.navbar.open_cart()
@@ -66,3 +69,29 @@ def test_logging_in_carries_the_guest_cart_over_exactly_once(
         cart_page.page.reload()
         expect(cart_page.items).to_have_count(1)
         assert cart_page.lines() == [new_product_line(quantity=2)]
+
+
+@allure.title(
+    "A guest line the server refuses is dropped on login and the customer is told"
+)
+@allure.tag("UI-CART-03")
+@allure.severity(allure.severity_level.NORMAL)
+def test_guest_line_the_server_refuses_is_dropped_on_login(
+    login_page, refused_guest_cart, new_customer, new_product_line
+):
+    with step("Log in as a fresh customer"):
+        home_page = login_page.login(new_customer["attributes"])
+
+    with step("The customer is warned that one item couldn't be added"):
+        expect(home_page.toast).to_have_text(
+            "One item from your cart couldn't be added"
+            " — it may be out of stock or no longer available."
+        )
+
+    with step("The guest cart the browser held is emptied"):
+        wait_for_empty_guest_cart(home_page.page)
+
+    with step("The cart lists only the product that was in stock"):
+        cart_page = home_page.navbar.open_cart()
+        expect(cart_page.items).to_have_count(1)
+        assert cart_page.lines() == [new_product_line(quantity=1)]
