@@ -2,6 +2,7 @@
 
 import os
 import time
+import uuid
 
 import pytest
 from dotenv import load_dotenv
@@ -51,6 +52,53 @@ def seed_manifest(api) -> dict:
 def customer(seed_manifest) -> dict:
     """The seeded CUSTOMER account (email, role, password, ...)."""
     return seeded_account(seed_manifest, "CUSTOMER")
+
+
+@pytest.fixture
+def run_id() -> str:
+    """A unique tag for one test's disposable entities."""
+    return f"pytest-{uuid.uuid4().hex[:12]}"
+
+
+@pytest.fixture
+def factory(api, run_id):
+    """Create disposable data via /test/factory/*, cleaned up after each test."""
+
+    def _create(entity_type: str, **overrides) -> dict:
+        response = api.post(
+            f"/test/factory/{entity_type}", json={"run_id": run_id, **overrides}
+        )
+        assert response.status_code == 201, (
+            f"Factory could not create a {entity_type}: "
+            f"{response.status_code} {response.text}"
+        )
+        return response.json()
+
+    yield _create
+
+    api.delete("/test/cleanup", params={"run_id": run_id})
+
+
+@pytest.fixture(scope="session")
+def out_of_stock_product(seed_manifest) -> dict:
+    """The seeded product with no stock, as the seed manifest lists it."""
+    return next(
+        fixture
+        for fixture in seed_manifest["fixtures"]
+        if fixture["key"] == "out_of_stock_product"
+    )
+
+
+@pytest.fixture
+def new_customer(factory):
+    """A fresh throwaway customer, with an empty cart."""
+    return factory("customer")
+
+
+@pytest.fixture
+def new_product(factory):
+    """A fresh throwaway product - active, 100 in stock, no category."""
+    return factory("product")
 
 
 @pytest.fixture(scope="session")

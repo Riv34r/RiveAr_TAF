@@ -26,6 +26,7 @@ supports it, and which automated test now guards each fix.
 | [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-018 |
 | [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-020 |
 | [BUG-005](#bug-005) | Medium | Open — accepted | UI | A reload after the access token expires signs the customer out, though the refresh token is valid | UI-LOGIN-10 |
+| [BUG-006](#bug-006) | Medium | Open | UI | Opening checkout with a page load sends a signed-in customer with a full cart back to the cart | UI-CART-05 |
 | [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-005 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
 | [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-007 |
@@ -453,6 +454,69 @@ Accepted for now: 30 minutes covers an active visit, and renewal during the
 visit works (`UI-LOGIN-08`). What's lost is only a return after a longer
 break. `UI-LOGIN-10` describes today's behaviour and will fail once this is
 fixed, as a reminder to flip the scenario.
+
+---
+
+## BUG-006
+
+**Opening `/checkout` with a page load - a reload, a link, the address typed in
+- sends a signed-in customer with a full cart back to `/cart`.**
+
+| | |
+|---|---|
+| Severity | Medium |
+| Status | Open |
+| Area | Frontend — `pages/CheckoutPage.tsx`, `context/CartContext.tsx` |
+| Found | Implementing UI-CART-04 - a reload of checkout after logging in landed on the cart |
+| Regression test | `UI-CART-05` in `tests/ui/test_cart.py`, pinning the current behaviour |
+
+### What happens
+
+Checkout sends a customer with nothing to buy back to the cart:
+
+```ts
+const isCartEmpty = !cartLoading && (!cart || cart.items.length === 0);
+useEffect(() => {
+  if (isCartEmpty) navigate("/cart", { replace: true });
+}, [isCartEmpty, navigate]);
+```
+
+On a page load the session is still being checked, so `CartContext` loads the
+guest cart first - empty, and no longer loading. Once the session is
+confirmed, `ProtectedRoute` mounts `CheckoutPage` in the same render in which
+the cart is still that empty guest cart; the customer's own cart is only
+requested by an effect after that render. Checkout sees "not loading, no
+items" and redirects before the real cart arrives.
+
+Reaching checkout inside the app - "Proceed to checkout" on the cart - works,
+because the customer's cart is already loaded by then.
+
+### Steps to reproduce
+
+1. Log in as a customer and put a product in the cart
+2. Proceed to checkout from the cart - checkout opens
+3. Reload the page
+
+**Expected:** checkout stays open with the cart's items.
+**Actual:** the browser is on `/cart`, which still lists the items.
+
+### Evidence
+
+Live against the running SUT, a fresh customer with two of a product in the
+cart:
+
+```
+/checkout opened directly, 3 attempts:   landed on /cart, /cart, /cart
+"Proceed to checkout" on the cart:       stays on /checkout
+reload of /checkout:                     landed on /cart, cart still lists 2
+```
+
+### Suggested fix
+
+Don't decide the cart is empty until the customer's cart has been requested:
+treat the cart as loading while the session is being checked, or while
+`isCustomer` has changed but `refresh` has not run yet. Not applied - outside
+the scope of the change that was authorised.
 
 ---
 

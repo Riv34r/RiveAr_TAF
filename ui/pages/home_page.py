@@ -12,3 +12,4 @@ class HomePage(BasePage):
     def __init__(self, page: Page):
         super().__init__(page)
         self.navbar = Navbar(page)
+        self.toast = page.get_by_role("alert")

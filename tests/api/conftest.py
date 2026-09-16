@@ -31,37 +31,6 @@ def admin_client(admin_session) -> AdminClient:
 
 
 @pytest.fixture
-def run_id() -> str:
-    """A unique tag for one test's disposable entities."""
-    return f"pytest-{uuid.uuid4().hex[:12]}"
-
-
-@pytest.fixture
-def factory(api, run_id):
-    """Create disposable data via /test/factory/*, cleaned up after each test."""
-
-    def _create(entity_type: str, **overrides) -> dict:
-        response = api.post(
-            f"/test/factory/{entity_type}", json={"run_id": run_id, **overrides}
-        )
-        assert response.status_code == 201, (
-            f"Factory could not create a {entity_type}: "
-            f"{response.status_code} {response.text}"
-        )
-        return response.json()
-
-    yield _create
-
-    api.delete("/test/cleanup", params={"run_id": run_id})
-
-
-@pytest.fixture
-def new_customer(factory):
-    """A fresh throwaway customer."""
-    return factory("customer")
-
-
-@pytest.fixture
 def logged_in_customer(new_customer, auth_client):
     """(customer, token pair) for a fresh, already-logged-in throwaway customer."""
     token_pair = auth_client.login(
@@ -94,12 +63,6 @@ def product_client(admin_session) -> ProductClient:
 def public_products(api) -> ProductClient:
     """ProductClient with no authentication, for the public side of a check."""
     return ProductClient(api)
-
-
-@pytest.fixture
-def new_product(factory):
-    """A fresh throwaway product."""
-    return factory("product")
 
 
 @pytest.fixture(scope="session")

@@ -2,14 +2,27 @@
 
 import json
 import os
+from decimal import Decimal
 from string import Template
 
 import pytest
 
+from api.clients.cart_client import CartClient
+from core.api.api_client import ApiClient
+from ui.pages.cart_page import CartLine
 from ui.pages.home_page import HomePage
 from ui.pages.login_page import LoginPage
 from ui.pages.order_history_page import OrderHistoryPage
+from ui.pages.product_details_page import ProductDetailsPage
 from utils.helpers import assert_status_code
+
+# Each page fixture that starts signed in, and the token pair its context holds.
+SESSIONS = {
+    "customer_page": "customer_tokens",
+    "rejected_session_page": "rejected_session_tokens",
+    "unrenewable_session_page": "unrenewable_session_tokens",
+    "lapsed_session_page": "lapsed_session_tokens",
+}
 
 
 @pytest.fixture(scope="session")
@@ -33,18 +46,10 @@ def session_state(pytestconfig, base_url):
 @pytest.fixture
 def context(new_context, session_state, request):
     """The test's context - holding the session its page fixture asks for."""
-    if "customer_page" in request.fixturenames:
-        tokens = request.getfixturevalue("customer_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "rejected_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("rejected_session_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "unrenewable_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("unrenewable_session_tokens")
-        return new_context(storage_state=session_state(tokens))
-    if "lapsed_session_page" in request.fixturenames:
-        tokens = request.getfixturevalue("lapsed_session_tokens")
-        return new_context(storage_state=session_state(tokens))
+    for page_fixture, tokens_fixture in SESSIONS.items():
+        if page_fixture in request.fixturenames:
+            tokens = request.getfixturevalue(tokens_fixture)
+            return new_context(storage_state=session_state(tokens))
     return new_context()
 
 
@@ -114,3 +119,45 @@ def login_page(page) -> LoginPage:
 def order_history_page(page) -> OrderHistoryPage:
     """The customer's order history, opened in this test's page."""
     return OrderHistoryPage(page).open()
+
+
+@pytest.fixture
+def new_product_line(new_product):
+    """new_product_line(quantity) - the cart line the throwaway product makes."""
+
+    def _line(quantity: int) -> CartLine:
+        return CartLine(
+            name=new_product["attributes"]["name"],
+            quantity=quantity,
+            line_total=Decimal(new_product["attributes"]["price"]) * quantity,
+        )
+
+    return _line
+
+
+@pytest.fixture
+def refused_guest_cart(login_page, new_product, out_of_stock_product):
+    """The guest cart holds one in-stock and one out-of-stock product."""
+    lines = [
+        {"product_id": new_product["entity_id"], "quantity": 1},
+        {"product_id": out_of_stock_product["entity_id"], "quantity": 1},
+    ]
+    login_page.page.evaluate(
+        "lines => localStorage.setItem('rivear_guest_cart', JSON.stringify(lines))",
+        lines,
+    )
+
+
+@pytest.fixture
+def new_customer_cart(api_url, auth_client, new_customer, new_product):
+    """The throwaway customer's cart holds two of the throwaway product."""
+    account = new_customer["attributes"]
+    tokens = auth_client.login(account["email"], account["password"]).json()
+    cart = CartClient(ApiClient(api_url, tokens["access_token"]))
+    assert_status_code(cart.add_item(new_product["entity_id"], quantity=2), 200)
+
+
+@pytest.fixture
+def product_details_page(page, new_product) -> ProductDetailsPage:
+    """The throwaway product's page, opened in this test's page."""
+    return ProductDetailsPage(page).open(id=new_product["entity_id"])
