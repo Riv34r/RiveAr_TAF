@@ -70,8 +70,8 @@ not.
 - The browser holds no session, and the guest cart holds two of a disposable active product with stock.
 
 **Expected Result:**
-- After logging in, the cart lists the product with quantity 2.
-- The guest cart the browser held is empty.
+- After logging in, the guest cart the browser held is empty.
+- The cart lists the product with quantity 2.
 - After a reload, the cart still lists the product with quantity 2.
 
 ### UI-CART-03 — A guest line the server refuses is dropped on login and the customer is told

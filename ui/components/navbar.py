@@ -24,6 +24,13 @@ class Navbar:
                 "No account menu: no one is signed in - the navbar shows none"
             ) from None
 
+    def open_login(self):
+        """Go to the login screen from the navbar."""
+        from ui.pages.login_page import LoginPage
+
+        self.login_link.click()
+        return LoginPage(self.page)
+
     def open_cart(self):
         """Go to the cart from the navbar."""
         from ui.pages.cart_page import CartPage

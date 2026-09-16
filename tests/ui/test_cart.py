@@ -37,3 +37,32 @@ def test_product_a_guest_adds_is_in_the_cart_once_after_a_reload(
         cart_page.page.reload()
         expect(cart_page.items).to_have_count(1)
         assert cart_page.lines() == [new_product_line(quantity=3)]
+
+
+@allure.title("Logging in carries the guest cart into the customer's cart exactly once")
+@allure.tag("UI-CART-02")
+@allure.severity(allure.severity_level.CRITICAL)
+def test_logging_in_carries_the_guest_cart_over_exactly_once(
+    product_details_page, new_customer, new_product_line
+):
+    with step("The guest cart holds two of the product"):
+        product_details_page.add_to_cart(quantity=2)
+
+    with step("Log in as a fresh customer"):
+        login_page = product_details_page.navbar.open_login()
+        home_page = login_page.login(new_customer["attributes"])
+
+    with step("The guest cart the browser held is emptied"):
+        home_page.page.wait_for_function(
+            "() => localStorage.getItem('rivear_guest_cart') === null"
+        )
+
+    with step("The cart lists the product with quantity 2"):
+        cart_page = home_page.navbar.open_cart()
+        expect(cart_page.items).to_have_count(1)
+        assert cart_page.lines() == [new_product_line(quantity=2)]
+
+    with step("After a reload, the cart still lists it with quantity 2"):
+        cart_page.page.reload()
+        expect(cart_page.items).to_have_count(1)
+        assert cart_page.lines() == [new_product_line(quantity=2)]

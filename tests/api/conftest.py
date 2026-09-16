@@ -31,12 +31,6 @@ def admin_client(admin_session) -> AdminClient:
 
 
 @pytest.fixture
-def new_customer(factory):
-    """A fresh throwaway customer."""
-    return factory("customer")
-
-
-@pytest.fixture
 def logged_in_customer(new_customer, auth_client):
     """(customer, token pair) for a fresh, already-logged-in throwaway customer."""
     token_pair = auth_client.login(

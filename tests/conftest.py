@@ -80,6 +80,12 @@ def factory(api, run_id):
 
 
 @pytest.fixture
+def new_customer(factory):
+    """A fresh throwaway customer, with an empty cart."""
+    return factory("customer")
+
+
+@pytest.fixture
 def new_product(factory):
     """A fresh throwaway product - active, 100 in stock, no category."""
     return factory("product")
