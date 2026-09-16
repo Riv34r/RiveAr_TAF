@@ -132,7 +132,7 @@ def test_guest_proceeding_to_checkout_comes_back_to_it_with_the_cart(
 
 
 @allure.title("Reloading checkout sends a customer with a full cart back to the cart")
-@allure.tag("UI-CART-06")
+@allure.tag("UI-CART-05")
 @allure.severity(allure.severity_level.NORMAL)
 def test_reloading_checkout_sends_a_customer_with_a_full_cart_to_the_cart(
     login_page, new_customer_cart, new_customer, new_product_line

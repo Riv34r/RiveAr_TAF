@@ -114,7 +114,7 @@ back on checkout after logging in, with the cart they built. The return itself
 is the mechanism UI-LOGIN-04 covers; here it matters because the cart has to
 be carried over before checkout decides the cart is empty. That the cart
 reaches the server exactly once is UI-CART-02; a reload of checkout itself is
-UI-CART-06.
+UI-CART-05.
 
 **Preconditions:**
 - A disposable customer with an empty cart.
@@ -125,7 +125,7 @@ UI-CART-06.
 - After logging in, the browser lands on `/checkout`.
 - The checkout's order summary lists the product with quantity 2.
 
-### UI-CART-06 — Reloading checkout sends a customer with a full cart back to the cart
+### UI-CART-05 — Reloading checkout sends a customer with a full cart back to the cart
 
 **Route:** /cart, /checkout
 **Type:** Negative

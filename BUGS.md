@@ -26,7 +26,7 @@ supports it, and which automated test now guards each fix.
 | [BUG-003](#bug-003) | High | Open | API | Concurrent stock adjustments lose writes - no row lock | INV-018 |
 | [BUG-004](#bug-004) | High | Open | API | Concurrent order creation loses stock reservations, despite a row lock | ORD-020 |
 | [BUG-005](#bug-005) | Medium | Open — accepted | UI | A reload after the access token expires signs the customer out, though the refresh token is valid | UI-LOGIN-10 |
-| [BUG-006](#bug-006) | Medium | Open | UI | Opening checkout with a page load sends a signed-in customer with a full cart back to the cart | UI-CART-06 |
+| [BUG-006](#bug-006) | Medium | Open | UI | Opening checkout with a page load sends a signed-in customer with a full cart back to the cart | UI-CART-05 |
 | [OBS-001](#obs-001) | Low | Open | API/UI | Default catalogue listing includes unbuyable products | PROD-005 |
 | [OBS-002](#obs-002) | Low | Open | API | Zero decimals serialise as `"0"`, non-zero as `"20.00"` | PROMO-03 |
 | [OBS-003](#obs-003) | Low | Open | API | Some validation errors put machine-readable data in prose | PROD-007 |
@@ -468,7 +468,7 @@ fixed, as a reminder to flip the scenario.
 | Status | Open |
 | Area | Frontend — `pages/CheckoutPage.tsx`, `context/CartContext.tsx` |
 | Found | Implementing UI-CART-04 - a reload of checkout after logging in landed on the cart |
-| Regression test | `UI-CART-06` in `tests/ui/test_cart.py`, pinning the current behaviour |
+| Regression test | `UI-CART-05` in `tests/ui/test_cart.py`, pinning the current behaviour |
 
 ### What happens
 
