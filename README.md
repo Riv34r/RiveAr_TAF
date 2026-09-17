@@ -83,18 +83,18 @@ allure serve reports/allure_results
 
 ## CI
 
-GitHub Actions boots the SUT from source (Postgres + backend via its own
-`docker-compose.yml`, migrated and seeded) and runs the suites against it -
-see [.github/workflows/tests.yml](.github/workflows/tests.yml).
+GitHub Actions boots the SUT from source - Postgres, backend and front end via
+its own `docker-compose.yml` - migrates and seeds its database, and runs the
+suites against it - see [.github/workflows/tests.yml](.github/workflows/tests.yml).
 
 | Workflow | Trigger | Runs |
 |----------|---------|------|
-| Smoke | push/PR to `main`, or manually | API `-m smoke` + the whole DB suite |
-| Regression | daily 03:00 UTC, or manually | the whole API suite (`-n 4`) + the whole DB suite |
+| Smoke | push/PR to `main`, or manually | API and UI `-m smoke` + the whole DB suite |
+| Regression | daily 03:00 UTC, or manually | the whole API suite (`-n 4`) + the whole DB and UI suites |
 
 Both share one SUT boot - it costs minutes, the tests cost seconds. Each run
 writes a per-suite job summary and uploads the Allure/JUnit reports as a
-build artifact. The UI suite doesn't run in CI yet.
+build artifact; a failing UI test adds its screenshot and Playwright trace.
 
 ## Fixtures
 
@@ -176,4 +176,4 @@ pre-commit install
 | 5 | DB checks in API tests | Database assertions where the API's response can't show the state | Done |
 | 6 | UI layer | Playwright, page objects, critical journeys | In progress - login |
 | 7 | End-to-end | UI action -> API state -> DB truth | Planned |
-| 8 | CI | GitHub Actions: boot the SUT, run suites, publish reports | Done for API and DB |
+| 8 | CI | GitHub Actions: boot the SUT, run suites, publish reports | Done for API, DB and UI |
