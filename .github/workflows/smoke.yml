@@ -17,3 +17,4 @@ jobs:
     with:
       run_label: Smoke
       api_args: -m smoke
+      ui_args: -m smoke

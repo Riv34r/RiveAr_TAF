@@ -4,6 +4,7 @@ Implements scenarios from tests/ui/scenarios/cart.md.
 """
 
 import allure
+import pytest
 from playwright.sync_api import expect
 
 from ui.pages.cart_page import CartPage
@@ -22,6 +23,7 @@ def wait_for_empty_guest_cart(page):
 @allure.title("A product a guest adds is in the cart once and survives a reload")
 @allure.tag("UI-CART-01")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_product_a_guest_adds_is_in_the_cart_once_after_a_reload(
     product_details_page, new_product_line
 ):
@@ -105,6 +107,7 @@ def test_guest_line_the_server_refuses_is_dropped_on_login(
 )
 @allure.tag("UI-CART-04")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_guest_proceeding_to_checkout_comes_back_to_it_with_the_cart(
     product_details_page, new_customer, new_product_line
 ):

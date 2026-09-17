@@ -50,6 +50,7 @@ def replace_access_token(page, token: str):
 )
 @allure.tag("UI-LOGIN-01")
 @allure.severity(allure.severity_level.BLOCKER)
+@pytest.mark.smoke
 def test_valid_credentials_sign_the_customer_in(login_page, customer):
     with step("Log in as the seeded customer"):
         home_page = login_page.login(customer)
@@ -140,6 +141,7 @@ def test_anonymous_visitor_is_brought_back_after_logging_in(
 @allure.title("A session handed to the browser opens a protected route directly")
 @allure.tag("UI-LOGIN-05")
 @allure.severity(allure.severity_level.CRITICAL)
+@pytest.mark.smoke
 def test_session_handed_to_the_browser_opens_a_protected_route(
     customer_page, order_history_page
 ):
